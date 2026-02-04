@@ -1,0 +1,1866 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Counterpart API",
+    "description": "Welcome to the Counterpart API!\n\nCounterpart's API make it easy for appointed brokerages to access our leading quotes and coverage directly within their platforms. Behind these APIs is dynamic rating logic to assess a company's exposure in real-time.\n\nThe Counterpart API is organized around REST ([Representational State Transfer](https://www.ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm)), an architectural pattern that describes how distributed systems can expose a consistent interface.\n",
+    "version": "1.0.0",
+    "contact": {
+      "email": "api@yourcounterpart.com"
+    }
+  },
+  "x-tagGroups": [
+    {
+      "name": "Introduction",
+      "tags": [
+        "API Support",
+        "Service Status",
+        "Terms and Conditions",
+        "Authentication",
+        "Response Types"
+      ]
+    },
+    {
+      "name": "Application",
+      "tags": [
+        "Submission Workflow 101",
+        "Application",
+        "Question Object",
+        "Submit Application Overview"
+      ]
+    },
+    {
+      "name": "Quote",
+      "tags": [
+        "Quote Webhook Results",
+        "Workflow Status Webhook",
+        "Re-Requesting Quote Response",
+        "Quote",
+        "Quote Subjectivities Workflow"
+      ]
+    },
+    {
+      "name": "Subjectivities Implementation Options",
+      "tags": [
+        "Subjectivities Hosted Portal",
+        "Subjectivities Custom Integration",
+        "Subjectivities Object",
+        "Submit Subjectivities",
+        "Change Coverage Overview",
+        "Change Coverage",
+        "Change Subcoverage Overview",
+        "Change Subcoverage"
+      ]
+    },
+    {
+      "name": "Policy",
+      "tags": [
+        "Bind Policy Overview",
+        "Policy Webhook Results",
+        "Policy"
+      ]
+    },
+    {
+      "name": "Sandbox/Test",
+      "tags": [
+        "Sandbox Overview",
+        "Sandbox",
+        "Healthcheck"
+      ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "API Support",
+      "description": "Please direct all technical and partnership questions to api@yourcounterpart.com.\n"
+    },
+    {
+      "name": "Service Status",
+      "description": "Stay informed about the availability of Counterpart API by visiting our [Services Status](https://status.yourcounterpart.com/) page. This page provides real-time updates on the status of our services, ensuring that you are always aware of any disruptions or maintenance activities that may impact your API usage.\n\nWe strive to deliver a seamless experience with our API, and our Service Status page is designed to keep you informed and minimize any potential disruptions to your operations.\n"
+    },
+    {
+      "name": "Terms and Conditions",
+      "description": "By accessing and using the API Software, You agree to be bound by the API Software Terms of Use found at [https://yourcounterpart.com/api-terms](https://yourcounterpart.com/api-terms) and the Terms of Service found at [https://yourcounterpart.com/terms](https://yourcounterpart.com/terms). You understand that You will create a legally binding contract between Your company and Counterpart, Inc. including all affiliates (\"CPI\") regarding access to and use of the API Software, and You represent and warrant that You have the authority to agree to and understand this API Software Terms of Use on behalf of Your company.\n"
+    },
+    {
+      "name": "Authentication",
+      "description": "The Counterpart API uses API keys to authenticate requests. Counterpart will generate a unique token for your brokerage. You will need to add your API key to 'headers' as `X-Api-Key` in all requests.\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> The Counterpart API can be used in Sandbox without affecting production data. The API key used to authenticate the request will determine whether the request is made within a test or live environment.\n</div>\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> API requests are limited to 10 per second and 50,000 per day. Contact our support at api@yourcounterpart.com to request increased throttle limits.\n</div>\n\nExample headers:\n```json\n{\n    \"Accept\": \"application/json\",\n    \"Content-Type\": \"application/json\",\n    \"X-API-KEY\": \"YOUR_API_KEY\"\n}\n```\n\n<div style=\"background-color: rgb(106,193,116); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> Make sure to replace `YOUR_API_KEY` with your API key.\n</div>\n"
+    },
+    {
+      "name": "Response Types",
+      "description": "Counterpart API uses 2 types of responses depending on the data returned:\n\n| Response Type    | Description                                                                                                                                     |\n| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |\n| **Synchronous**  | This will be used by the `Application` endpoints (i.e. Start Application, Re-Request Application Questions, Update Coverage).                   |\n| **Asynchronous** | This will be used by all `Quote` or `Policy` endpoints as the data needs to run through Counterpart's Rating Engine prior to it being returned. |\n\n#### More Info on Asynchronous Responses from Counterpart\nThe Counterpart API uses webhooks to return results from all Quote or Policy endpoints including when you [submit an application](#operation/submitApplication) or when you `bind a policy`. The webhook returns a quote, a request for our underwriters to review the application, or a declination when submitting an application, along with the policy details and pdf when binding coverage.\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> Some webhook responses may include base64 encoded pdf documents. The attached documents may cause the webhook payload size to be large, sometimes 3MB+.\n</div>\n\n#### Building for Webhook Responses\nTo integrate the full quote to bind flow, you will need to create webhook endpoints on your server to receive quote and policy responses. The Counterpart API will return the following POST requests:\n\n**YOUR_WEBHOOK_URL/account-results**\n- Data will be sent here whenever a quote is generated or updated.\n- First response will come after successfully [submitting an application](#operation/submitApplication).\n\n**YOUR_WEBHOOK_URL/workflow_status**\n- Data will be sent here with real-time updates on workflow processing status.\n- Provides status updates during submission processing (PROCESSING, SUCCESS, FAILED).\n- Useful for tracking the progress of async operations.\n\n**YOUR_WEBHOOK_URL/policy-results**\n- This will be used whenever a bind policy event is successful.\n\nYou can view more details in [Quote Webhook Results](#tag/Quote-Webhook-Results), [Workflow Status Webhook](#tag/Workflow-Status-Webhook), and [Bind Policy Overview including Results Webhook](#tag/Bind-Policy-Overview).\n\n\n#### Base64 Encoding\nOur webhook payload may include PDF documents encoded in Base64. Please note that we are using a URL safe encoding which substitutes - instead of + and _ instead of / in the standard Base64 alphabet.\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> We are using a URL safe encoding which substitutes - instead of + and _ instead of / in the standard Base64 alphabet. This should be taken into account when decoding the files as not all libraries will handle this gracefully by default.\n</div>\n"
+    },
+    {
+      "name": "Quote Webhook Results",
+      "x-displayName": "Quote Webhook Results",
+      "description": "When submitting an application or updating a quote, you will receive a webhook response at YOUR_WEBHOOK_URL/account-results. The response will include one of the following:\n\n#### Quote Response\n```json\n{\n  \"account_id\": \"a5bc70f1-e46f-42b5-a7ef-19645e436ce8\",\n  \"result\": \"QUOTED\",\n  \"message\": \"Quote generated successfully\",\n  \"quote\": {\n    \"account_id\": \"a5bc70f1-e46f-42b5-a7ef-19645e436ce8\",\n    \"effective_date\": \"2024-01-01\",\n    \"expiration_date\": \"2025-01-01\",\n    \"coverages\": [\n      {\n        \"coverage_line\": \"do\",\n        \"selected_option\": 1,\n        \"limit\": \"1000000\",\n        \"retention\": \"10000\",\n        \"premium\": \"5000.00\"\n      }\n    ],\n    \"total_premium\": \"5000.00\",\n    \"can_bind\": true\n  }\n}\n```\n\n#### Review Response\n```json\n{\n  \"account_id\": \"a5bc70f1-e46f-42b5-a7ef-19645e436ce8\",\n  \"result\": \"REVIEW\",\n  \"message\": \"Application requires underwriter review\",\n  \"subjectivities\": [\n    {\n      \"key\": \"loss_run\",\n      \"type\": \"upload\",\n      \"required\": true,\n      \"details\": \"Please provide loss runs for the past 3 years\"\n    }\n  ]\n}\n```\n\n#### Declination Response\n```json\n{\n  \"account_id\": \"a5bc70f1-e46f-42b5-a7ef-19645e436ce8\",\n  \"result\": \"DECLINED\",\n  \"message\": \"Application declined due to high risk exposure\"\n}\n```\n"
+    },
+    {
+      "name": "Workflow Status Webhook",
+      "x-displayName": "Workflow Status Webhook",
+      "description": "The Workflow Status webhook provides real-time updates on the processing status of your submissions. When submitting an application, you will receive status updates at `YOUR_WEBHOOK_URL/workflow_status` as the workflow progresses through different stages.\n\nThis webhook helps you track the progress of async operations and provides immediate feedback if something goes wrong during processing.\n\n#### Processing Response\nSent while the workflow is actively processing your submission:\n```json\n{\n  \"result\": \"PROCESSING\",\n  \"message\": \"SUBMISSION workflow in progress - Stage: PRE_PROCESSING\",\n  \"can_bind\": false,\n  \"quote\": {\n    \"account_id\": \"69c67621-22f5-4ce4-a0cb-223f1bd82bb3\",\n    \"coverage\": {},\n    \"documents\": {\n      \"quote_bundle\": null,\n      \"sample_policy_forms\": null,\n      \"endorsements\": null,\n      \"application\": null\n    },\n    \"quote_number\": \"CML-SUC3L6U-A1225\",\n    \"quote_expiration_date\": null,\n    \"subjectivities\": [],\n    \"subjectivities_url\": \"https://app.yourcounterpart.com/subjectivities/{account_id}/{token}\",\n    \"counterpart_account_page_url\": \"https://app.yourcounterpart.com/account/{account_id}/{token}/{hash}\",\n    \"quota_share\": null\n  }\n}\n```\n\n#### Success Response\nSent when the workflow completes successfully:\n```json\n{\n  \"result\": \"SUCCESS\",\n  \"message\": \"SUBMISSION workflow completed successfully\",\n  \"can_bind\": false,\n  \"quote\": {\n    \"account_id\": \"6b1f3fd0-d8e6-477f-9759-9bf1f94b67af\",\n    \"coverage\": {},\n    \"documents\": {\n      \"quote_bundle\": null,\n      \"sample_policy_forms\": null,\n      \"endorsements\": null,\n      \"application\": null\n    },\n    \"quote_number\": \"CML-SZ73L6Z-A1225\",\n    \"quote_expiration_date\": null,\n    \"subjectivities\": [],\n    \"subjectivities_url\": \"https://app.yourcounterpart.com/subjectivities/{account_id}/{token}\",\n    \"counterpart_account_page_url\": \"https://app.yourcounterpart.com/account/{account_id}/{token}/{hash}\",\n    \"quota_share\": [\n      {\n        \"percent\": 50,\n        \"name\": \"Aspen Specialty Insurance Company\"\n      },\n      {\n        \"percent\": 50,\n        \"name\": \"Westfield\"\n      }\n    ],\n    \"carrier_type\": \"SURPLUS\",\n    \"carrier_name\": \"Aspen Specialty Insurance Company, Westfield Specialty Insurance Company\"\n  }\n}\n```\n\n#### Failed Response\nSent when the workflow encounters an error:\n```json\n{\n  \"result\": \"FAILED\",\n  \"message\": \"Application submission failed. Please reach out to Counterpart support at support@yourcounterpart.com for assistance.\",\n  \"can_bind\": false,\n  \"quote\": {\n    \"account_id\": \"69c67621-22f5-4ce4-a0cb-223f1bd82bb3\",\n    \"coverage\": {},\n    \"documents\": {\n      \"quote_bundle\": null,\n      \"sample_policy_forms\": null,\n      \"endorsements\": null,\n      \"application\": null\n    },\n    \"quote_number\": \"CML-SUC3L6U-A1225\",\n    \"quote_expiration_date\": null,\n    \"subjectivities\": [],\n    \"subjectivities_url\": \"https://app.yourcounterpart.com/subjectivities/{account_id}/{token}\",\n    \"counterpart_account_page_url\": \"https://app.yourcounterpart.com/account/{account_id}/{token}/{hash}\",\n    \"quota_share\": null\n  }\n}\n```\n\n#### Workflow Status Values\n| Status | Description |\n| ------ | ----------- |\n| **PROCESSING** | The workflow is actively processing your submission. The message will include the current stage. |\n| **SUCCESS** | The workflow completed successfully. Check the quote object for results. |\n| **FAILED** | The workflow encountered an error. Contact Counterpart support for assistance. |\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> After receiving a SUCCESS status on the workflow_status webhook, you will also receive the final quote details via the account-results webhook. The workflow_status webhook is useful for real-time progress tracking, while account-results provides the complete quote information.\n</div>\n"
+    },
+    {
+      "name": "Re-Requesting Quote Response",
+      "x-displayName": "Re-Requesting Quote Response",
+      "description": "You can re-request a quote response at any time by making a GET request to the [Get Quote](#operation/getQuote) endpoint. This is useful if you need to:\n\n- Check the status of a quote\n- Verify if subjectivities have been cleared\n- Get the latest quote after making changes\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> The quote response will only be updated after all required subjectivities have been cleared by Counterpart's underwriters.\n</div>\n\nExample response:\n```json\n{\n  \"account_id\": \"a5bc70f1-e46f-42b5-a7ef-19645e436ce8\",\n  \"result\": \"QUOTED\",\n  \"message\": \"Quote retrieved successfully\",\n  \"quote\": {\n    \"account_id\": \"a5bc70f1-e46f-42b5-a7ef-19645e436ce8\",\n    \"effective_date\": \"2024-01-01\",\n    \"expiration_date\": \"2025-01-01\",\n    \"coverages\": [\n      {\n        \"coverage_line\": \"do\",\n        \"selected_option\": 1,\n        \"limit\": \"1000000\",\n        \"retention\": \"10000\",\n        \"premium\": \"5000.00\"\n      }\n    ],\n    \"total_premium\": \"5000.00\",\n    \"can_bind\": true\n  }\n}\n```\n"
+    },
+    {
+      "name": "Quote",
+      "x-displayName": "GET - Quote",
+      "description": "Endpoints for managing quotes"
+    },
+    {
+      "name": "Quote Subjectivities Workflow",
+      "x-displayName": "Quote Subjectivities Workflow",
+      "description": "Subjectivities are additional requirements that need to be fulfilled before a quote can be bound. The workflow for handling subjectivities is as follows:\n\n1. **Receive Subjectivities**\n   - After submitting an application, you may receive a [Review Response](#tag/Quote-Webhook-Results) with a list of required subjectivities\n   - Each subjectivity will have a type (upload or question) and details about what is required\n\n2. **Submit Subjectivities**\n   - Use the [Submit Subjectivities](#operation/submitSubjectivities) endpoint to provide the required information\n   - For file uploads, provide a base64 encoded file\n   - For questions, provide the answer in the appropriate format\n\n3. **Monitor Status**\n   - Use the [Get Quote](#operation/getQuote) endpoint to check if subjectivities have been cleared\n   - The quote response will include `can_bind: true` when all subjectivities are cleared\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> All subjectivities must be cleared before you can bind the policy. You can verify this by checking the `can_bind` variable in the quote response.\n</div>\n\nExample subjectivity submission:\n```json\n{\n  \"subjectivities\": [\n    {\n      \"key\": \"loss_run\",\n      \"file\": \"base64_encoded_file_content\"\n    },\n    {\n      \"key\": \"claims_history\",\n      \"answer\": \"No claims in the past 3 years\"\n    }\n  ]\n}\n```\n"
+    },
+    {
+      "name": "Submission Workflow 101",
+      "x-displayName": "Submission Workflow 101",
+      "description": "Counterpart's workflow makes it easy for you to submit and manage applications. Just follow these steps:\n\n![Application Submission Workflow](./images/bind_flow_counterpart.png)\n\n1. **Start Application**\n   - Use the [Start Application](#tag/Application/operation/startApplication) endpoint to begin a new application\n   - Provide basic company information and requested coverages\n   - Receive an account id and initial set of questions\n\n2. **Answer Questions**\n   - Review and answer all required questions\n   - Questions may be dynamic based on previous answers\n   - Use [Get Application Questions](#tag/Application/operation/getApplicationQuestions) to retrieve questions at any time\n\n3. **Submit Application**\n   - Use the [Submit Application](#tag/Application/operation/submitApplication) endpoint to submit all answers\n   - Include HR contact information\n   - Optionally provide expiring declaration page\n\n4. **Review Process**\n   - Application is reviewed by Counterpart's system\n   - You will receive a [webhook response](#tag/Quote-Webhook-Results) with either:\n     - A quote\n     - A request for additional information (subjectivities)\n     - A declination\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> The application process is asynchronous. After submission, you will receive results via webhook to YOUR_WEBHOOK_URL/account-results.\n</div>\n"
+    },
+    {
+      "name": "Start Application",
+      "x-displayName": "POST - Start an Application",
+      "description": "Endpoint for starting a new application"
+    },
+    {
+      "name": "Question Object",
+      "x-displayName": "Question Object",
+      "description": "The Question object represents a single question in the application process. Questions can be of different types and may have dependencies on other answers.\n\n```json\n{\n  \"key\": \"industry\",\n  \"type\": \"text\",\n  \"title\": \"What is your industry?\",\n  \"help_text\": \"Please select your industry from the list.\",\n  \"required\": true,\n  \"placeholder\": \"Select an industry\",\n  \"dependant_on\": null,\n  \"allow_multiple_answers\": false,\n  \"options_serializer\": []\n}\n```\n\n#### Question Types\n- **text**: Free-form text input\n- **number**: Numeric input\n- **radio**: Single selection from options\n- **checkbox**: Multiple selections from options\n- **date**: Date input\n- **file**: File upload\n\n#### Dependencies\nQuestions may be dependent on answers to other questions. The `dependant_on` field specifies the condition that determines if this question should be shown.\n"
+    },
+    {
+      "name": "Get Application Questions",
+      "x-displayName": "GET - Re-Request Application Questions",
+      "description": "Endpoint for retrieving application questions"
+    },
+    {
+      "name": "Update Application",
+      "x-displayName": "PUT - Update Application",
+      "description": "Endpoint for updating application information including company details, broker info, coverages, HR contact, and answers"
+    },
+    {
+      "name": "Submit Application Overview",
+      "x-displayName": "Overview for Submitting an Application",
+      "description": "Before submitting an application, ensure you have:\n\n1. **Completed All Questions**\n   - All required questions have been answered\n   - Answers are in the correct format\n   - Any file uploads are properly encoded\n\n2. **HR Contact Information**\n   - Name of HR representative\n   - Email address\n   - Phone number\n   - Job title\n\n3. **Supporting Documents**\n   - Expiring declaration page (if applicable)\n   - Any other required documentation\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> After submission, you will receive an asynchronous response via webhook. The response will include either a quote, a request for underwriter review, or a declination.\n</div>\n"
+    },
+    {
+      "name": "Submit Application",
+      "x-displayName": "POST - Submit an Application",
+      "description": "Endpoint for submitting a completed application"
+    },
+    {
+      "name": "Subjectivities Hosted Portal",
+      "x-displayName": "Subjectivities Via Hosted Portal",
+      "description": "Counterpart provides a hosted portal for submitting subjectivities. This option allows you to:\n\n- Upload files directly through a web interface\n- Answer questions in a user-friendly format\n- Track the status of submitted subjectivities\n- Receive notifications when subjectivities are cleared\n\n![Counterpart Portal Workflow](./images/Counterpart_Portal_Workflow.png)\n\n![Counterpart Quote Example](./images/Counterpart_Quote_Example.png)\n\nContact your Counterpart representative to set up the hosted portal for your brokerage.\n"
+    },
+    {
+      "name": "Subjectivities Custom Integration",
+      "x-displayName": "Custom Integration for Subjectivities",
+      "description": "For brokerages that prefer to handle subjectivities within their own system, Counterpart provides a complete API integration. This section details the implementation options and endpoints available for custom integration.\n"
+    },
+    {
+      "name": "Subjectivities Object",
+      "x-displayName": "Subjectivities",
+      "description": "The Subjectivity object represents a single requirement that needs to be fulfilled before a quote can be bound.\n\n```json\n{\n  \"key\": \"loss_run\",\n  \"type\": \"upload\",\n  \"cleared\": false,\n  \"required\": true,\n  \"question\": \"Please provide loss runs for the past 3 years\",\n  \"details\": \"Loss runs should include all claims and their current status\"\n}\n```\n\n#### Subjectivity Types\n- **upload**: Requires a file to be uploaded\n- **question**: Requires an answer to a specific question\n"
+    },
+    {
+      "name": "Submit Subjectivities",
+      "x-displayName": "POST - Submit Subjectivities",
+      "description": "Endpoint for submitting subjectivities"
+    },
+    {
+      "name": "Change Coverage Overview",
+      "x-displayName": "Selecting Alternative Limit Retention Options",
+      "description": "After receiving a quote, you can modify the coverage options to:\n\n- Change the selected coverage line\n- Adjust limits and retentions\n- Update premium calculations\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> After changing coverage, you will receive an updated quote via webhook to YOUR_WEBHOOK_URL/account-results.\n</div>\n"
+    },
+    {
+      "name": "Change Coverage",
+      "x-displayName": "POST - Change Selected Coverage",
+      "description": "Endpoint for modifying coverage options"
+    },
+    {
+      "name": "Change Subcoverage Overview",
+      "x-displayName": "Adjusting a Sub Coverage (Sublimit / Subretention)",
+      "description": "Sub-coverages allow you to adjust specific aspects of your coverage:\n\n- Modify sublimits for specific coverage areas\n- Adjust subretentions for particular risks\n- Update premium calculations for sub-coverages\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> After changing sub-coverage, you will receive an updated quote via webhook to YOUR_WEBHOOK_URL/account-results.\n</div>\n"
+    },
+    {
+      "name": "Change Subcoverage",
+      "x-displayName": "POST - Change Sub Coverage (Sublimit / Subretention)",
+      "description": "Endpoint for modifying sub-coverage options"
+    },
+    {
+      "name": "Bind Policy Overview",
+      "x-displayName": "Overview for Binding a Policy",
+      "description": "Before binding a policy, ensure you have:\n\n1. **Cleared All Subjectivities**\n   - All required subjectivities have been submitted\n   - Underwriters have cleared all subjectivities\n   - The quote shows `can_bind: true`\n\n2. **Selected Coverage Options**\n   - Final limits and retentions are selected\n   - All sub-coverages are configured\n   - Premium is acceptable\n\n3. **Effective Date**\n   - Coverage start date is confirmed\n   - Date is within acceptable range\n   - No conflicts with existing coverage\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> After binding, you will receive the policy details and PDFs via webhook to YOUR_WEBHOOK_URL/policy-results.\n</div>\n"
+    },
+    {
+      "name": "Policy Webhook Results",
+      "x-displayName": "Policy Webhook Results",
+      "description": "When binding a policy, you will receive a webhook response at YOUR_WEBHOOK_URL/policy-results. The response will include:\n\n```json\n{\n  \"account_id\": \"a5bc70f1-e46f-42b5-a7ef-19645e436ce8\",\n  \"status\": \"BOUND\",\n  \"policy\": {\n    \"policy_number\": \"CP-123456\",\n    \"effective_date\": \"2024-01-01\",\n    \"expiration_date\": \"2025-01-01\",\n    \"coverages\": [\n      {\n        \"coverage_line\": \"do\",\n        \"limit\": \"1000000\",\n        \"retention\": \"10000\"\n      }\n    ],\n    \"documents\": {\n      \"declaration_page\": \"base64_encoded_pdf\",\n      \"policy_form\": \"base64_encoded_pdf\"\n    }\n  }\n}\n```\n"
+    },
+    {
+      "name": "Bind Policy",
+      "x-displayName": "POST - Bind a Policy",
+      "description": "Endpoint for binding a policy"
+    },
+    {
+      "name": "Get Policy",
+      "x-displayName": "GET - Policy",
+      "description": "Endpoint for retrieving policy details"
+    },
+    {
+      "name": "Sandbox Overview",
+      "x-displayName": "Overview for Sandbox Environment",
+      "description": "The sandbox environment allows you to test the API integration without affecting production data. Key features include:\n\n- Test all API endpoints with sample data\n- Simulate different response scenarios\n- Practice the full quote-to-bind workflow\n- Test webhook integrations\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> The sandbox environment uses a separate API key and URL. Contact api@yourcounterpart.com to get your sandbox credentials.\n</div>\n"
+    },
+    {
+      "name": "Issue Quote",
+      "x-displayName": "POST - Issue Quote",
+      "description": "Endpoint for testing quote scenarios in sandbox"
+    },
+    {
+      "name": "Healthcheck",
+      "x-displayName": "GET - Healthcheck",
+      "description": "Endpoint for verifying API status"
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.yourcounterpart.com/partners/v1",
+      "description": "Production server"
+    },
+    {
+      "url": "https://sandbox-api.yourcounterpart.com/partners/v1",
+      "description": "Sandbox server"
+    }
+  ],
+  "paths": {
+    "/application/start": {
+      "post": {
+        "summary": "Start an application",
+        "description": "Initiates a new application process. This endpoint is used to start a new application and receive the initial set of questions based on the requested coverages.\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> For MPL coverage, no other coverage types should be used together.\n</div>\n",
+        "operationId": "startApplication",
+        "tags": [
+          "Application"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "app_source",
+                  "application_version",
+                  "legal_name",
+                  "coverages"
+                ],
+                "properties": {
+                  "app_source": {
+                    "type": "string",
+                    "description": "The type of application being submitted",
+                    "enum": [
+                      "counterpart"
+                    ],
+                    "example": "counterpart"
+                  },
+                  "application_version": {
+                    "type": "string",
+                    "description": "The rating engine version to be used",
+                    "enum": [
+                      "1000",
+                      "23"
+                    ],
+                    "example": "1000"
+                  },
+                  "legal_name": {
+                    "type": "string",
+                    "description": "Company Legal name",
+                    "example": "Legal Name Of Company goes here"
+                  },
+                  "dba_name": {
+                    "type": "string",
+                    "description": "Company DBA name (if different from legal name)",
+                    "nullable": true
+                  },
+                  "website": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Company website URL",
+                    "example": "https://websitetest.com"
+                  },
+                  "industry": {
+                    "type": "string",
+                    "description": "NAICS industry code",
+                    "example": "541219"
+                  },
+                  "address_1": {
+                    "type": "string",
+                    "description": "Company's primary address line"
+                  },
+                  "address_2": {
+                    "type": "string",
+                    "description": "Company's secondary address line (if applicable)",
+                    "nullable": true
+                  },
+                  "address_city": {
+                    "type": "string",
+                    "description": "Company's city"
+                  },
+                  "address_state": {
+                    "type": "string",
+                    "description": "Company's state"
+                  },
+                  "address_zipcode": {
+                    "type": "string",
+                    "description": "Company's ZIP code"
+                  },
+                  "broker_first_name": {
+                    "type": "string",
+                    "description": "Broker of Record's first name"
+                  },
+                  "broker_last_name": {
+                    "type": "string",
+                    "description": "Broker of Record's last name"
+                  },
+                  "broker_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Broker of Record's email address"
+                  },
+                  "brokerage_office_city": {
+                    "type": "string",
+                    "description": "The city of the office the Broker reports into",
+                    "nullable": true
+                  },
+                  "brokerage_office_state": {
+                    "type": "string",
+                    "description": "The state of the office the Broker reports into",
+                    "nullable": true
+                  },
+                  "coverages": {
+                    "type": "array",
+                    "description": "The coverages the company is requesting",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "do",
+                        "epli",
+                        "fid",
+                        "mpl",
+                        "crm"
+                      ]
+                    },
+                    "example": [
+                      "do",
+                      "epli",
+                      "fid"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Application started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Question"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "x-codeSamples": [
+              {
+                "lang": "shell",
+                "source": "curl --request POST \\\n     --url https://api.yourcounterpart.com/partners/v1/application/start \\\n     --header 'Accept: application/json' \\\n     --header 'Content-Type: application/json' \\\n     --header 'X-API-KEY: YOUR_API_KEY' \\\n     --data '{\n         \"app_source\": \"counterpart\",\n         \"application_version\": \"1000\",\n         \"legal_name\": \"Legal Name Of Company goes here\",\n         \"dba_name\": null,\n         \"website\": \"https://websitetest.com\",\n         \"industry\": \"541219\",\n         \"address_1\": \"address_1\",\n         \"address_2\": null,\n         \"address_city\": \"address_city\",\n         \"address_state\": \"California\",\n         \"address_zipcode\": \"12345\",\n         \"broker_first_name\": \"broker_first_name\",\n         \"broker_last_name\": \"broker_last_name\",\n         \"broker_email\": \"broker_email1@email.com\",\n         \"brokerage_office_city\": null,\n         \"brokerage_office_state\": null,\n         \"coverages\": [\"do\", \"epli\", \"fid\"]\n     }'\n"
+              }
+            ],
+            "x-responseExamples": [
+              {
+                "lang": "json",
+                "label": "Success Response",
+                "source": "{\n  \"account_id\": \"a5bc70f1-e46f-42b5-a7ef-19645e436ce8\",\n  \"questions\": [\n    {\n      \"key\": \"industry\",\n      \"type\": \"text\",\n      \"title\": \"What is your industry?\",\n      \"help_text\": \"Please select your industry from the list.\",\n      \"required\": true,\n      \"placeholder\": \"Select an industry\",\n      \"dependant_on\": null,\n      \"allow_multiple_answers\": false,\n      \"options_serializer\": []\n    }\n  ]\n}\n"
+              }
+            ],
+            "x-successNote": "<div style=\"background-color: rgb(106,193,116); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Success!</strong> Your application has been started successfully. You will receive a list of questions to answer.\n</div>\n"
+          }
+        }
+      }
+    },
+    "/application/{account_id}": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "get": {
+        "summary": "Re-Request Application Questions",
+        "description": "Get the application questions for an existing account",
+        "operationId": "getApplicationQuestions",
+        "tags": [
+          "Application"
+        ],
+        "responses": {
+          "200": {
+            "description": "Application questions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Question"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update Application",
+        "description": "Update an existing application. You can update an existing application at any time, **including after submission and approval (quoted status)**, by making a PUT request. When updating a submitted or approved application, the system will automatically reopen, apply changes, and resubmit the application with updated information.\n\n**Important:** Applications **cannot** be updated after the quote has been finalized (policy bound) or if a signed application PDF exists.\n\nYou can update the following fields:\n- **Company Information**: `legal_name`, `dba_name`, `website`, `address_*`, `industry`\n- **Broker Information**: `broker_first_name`, `broker_last_name`, `broker_email`, `brokerage_office_*`\n- **Coverage Selection**: `coverages` array\n- **HR Contact**: `hr_contact_name`, `hr_contact_email`, `hr_contact_title`, `hr_contact_phone`\n- **Answers**: Updated answers to application questions using the `answers` array\n",
+        "operationId": "updateApplication",
+        "tags": [
+          "Application"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "legal_name": {
+                    "type": "string",
+                    "description": "Legal name of the company"
+                  },
+                  "dba_name": {
+                    "type": "string",
+                    "description": "Doing business as name"
+                  },
+                  "website": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Company website URL"
+                  },
+                  "address_1": {
+                    "type": "string",
+                    "description": "Primary address line"
+                  },
+                  "address_2": {
+                    "type": "string",
+                    "description": "Secondary address line"
+                  },
+                  "address_city": {
+                    "type": "string",
+                    "description": "City"
+                  },
+                  "address_state": {
+                    "type": "string",
+                    "description": "State (two-letter code)"
+                  },
+                  "address_zipcode": {
+                    "type": "string",
+                    "description": "ZIP code"
+                  },
+                  "industry": {
+                    "type": "string",
+                    "description": "Industry code for the company"
+                  },
+                  "broker_first_name": {
+                    "type": "string",
+                    "description": "Broker's first name"
+                  },
+                  "broker_last_name": {
+                    "type": "string",
+                    "description": "Broker's last name"
+                  },
+                  "broker_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Broker's email address"
+                  },
+                  "brokerage_office_city": {
+                    "type": "string",
+                    "description": "Brokerage office city"
+                  },
+                  "brokerage_office_state": {
+                    "type": "string",
+                    "description": "Brokerage office state"
+                  },
+                  "coverages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "do",
+                        "epli",
+                        "fid",
+                        "mpl",
+                        "crm"
+                      ]
+                    },
+                    "description": "Array of coverage types"
+                  },
+                  "hr_contact_name": {
+                    "type": "string",
+                    "description": "HR contact name"
+                  },
+                  "hr_contact_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "HR contact email"
+                  },
+                  "hr_contact_title": {
+                    "type": "string",
+                    "description": "HR contact title"
+                  },
+                  "hr_contact_phone": {
+                    "type": "string",
+                    "description": "HR contact phone"
+                  },
+                  "answers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "description": "Question key"
+                        },
+                        "answer": {
+                          "description": "Answer value (can be string, number, or boolean)"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "answer"
+                      ]
+                    },
+                    "description": "Array of answer objects with key and answer fields"
+                  }
+                }
+              },
+              "example": {
+                "legal_name": "Updated Company Name",
+                "dba_name": "Updated DBA",
+                "website": "https://updated-website.com",
+                "address_1": "123 Updated Street",
+                "address_2": "Suite 400",
+                "address_city": "Updated City",
+                "address_state": "CA",
+                "address_zipcode": "90210",
+                "industry": "541219",
+                "broker_first_name": "John",
+                "broker_last_name": "Doe",
+                "broker_email": "broker@example.com",
+                "brokerage_office_city": "Los Angeles",
+                "brokerage_office_state": "CA",
+                "coverages": [
+                  "do",
+                  "epli"
+                ],
+                "hr_contact_name": "Jane Smith",
+                "hr_contact_email": "hr@company.com",
+                "hr_contact_title": "HR Manager",
+                "hr_contact_phone": "(555) 123-4567",
+                "answers": [
+                  {
+                    "key": "years_in_business",
+                    "answer": "> 10 Years"
+                  },
+                  {
+                    "key": "total_revenue",
+                    "answer": 5000000
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Application updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Application updated successfully"
+                    },
+                    "changes_made": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Array showing what fields were modified"
+                    },
+                    "resubmission": {
+                      "type": "object",
+                      "description": "Included if application was resubmitted",
+                      "properties": {
+                        "submitted_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Question"
+                      },
+                      "description": "Updated questions reflecting current application state"
+                    },
+                    "warnings": {
+                      "type": "object",
+                      "description": "Warnings about missing required questions (for open applications)",
+                      "properties": {
+                        "missing_required_questions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "normal_update": {
+                    "summary": "Successful Update",
+                    "value": {
+                      "account_id": "123e4567-e89b-12d3-a456-426614174000",
+                      "changes_made": [
+                        "Legal name changed from 'Old Company' to 'Updated Company Name'",
+                        "Answer updated for years_in_business: '5 Years' -> '> 10 Years'",
+                        "Answer updated for total_revenue: '1000000' -> '5000000'",
+                        "HR contact information updated"
+                      ],
+                      "questions": [
+                        {
+                          "key": "years_in_business",
+                          "type": "select",
+                          "title": "How many years has the Company been in business?",
+                          "required": false,
+                          "options_serializer": [
+                            {
+                              "id": "< 5 Years",
+                              "text": "< 5 Years"
+                            },
+                            {
+                              "id": "> 10 Years",
+                              "text": "> 10 Years"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "resubmission_update": {
+                    "summary": "Update with Automatic Resubmission",
+                    "value": {
+                      "account_id": "123e4567-e89b-12d3-a456-426614174000",
+                      "changes_made": [
+                        "Application reopened from SUBMITTED status",
+                        "Answer updated for years_in_business: '5 Years' -> '> 10 Years'"
+                      ],
+                      "resubmission": {
+                        "submitted_at": "2024-01-15T10:30:00Z",
+                        "guidelines_passed": true,
+                        "auto_approved": true,
+                        "status": "APPROVED"
+                      },
+                      "questions": [
+                        {
+                          "key": "years_in_business",
+                          "type": "select",
+                          "title": "How many years has the Company been in business?",
+                          "required": false,
+                          "options_serializer": [
+                            {
+                              "id": "< 5 Years",
+                              "text": "< 5 Years"
+                            },
+                            {
+                              "id": "> 10 Years",
+                              "text": "> 10 Years"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "quote_finalized": {
+                    "summary": "Quote Finalized",
+                    "description": "Applications with finalized quotes (policy bound) cannot be updated",
+                    "value": {
+                      "error": [
+                        "Cannot edit application with bound policy. Policy has been issued."
+                      ]
+                    }
+                  },
+                  "signed_application_exists": {
+                    "summary": "Signed Application Exists",
+                    "description": "Applications with a signed application PDF cannot be updated",
+                    "value": {
+                      "error": [
+                        "Cannot edit application with signed application PDF. Please contact support to remove signed application first."
+                      ]
+                    }
+                  },
+                  "rating_engine_too_old": {
+                    "summary": "Rating Engine Version Too Old",
+                    "description": "Applications created with rating engine version below 15 cannot be edited via the API",
+                    "value": {
+                      "error": [
+                        "Cannot edit applications submitted with rating engine version < 15"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Application Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "error": [
+                    "Application not found"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/application/{account_id}/submit": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "post": {
+        "summary": "Submit an Application",
+        "description": "Submit answers to application questions. This endpoint is used to submit the completed application with answers to all required questions.\n\n**Important:** This endpoint is asynchronous. Upon successful submission, you will receive a `PENDING` response indicating that your submission has been queued for processing. The actual results (quote, review request, or declination) will be delivered via webhook to `YOUR_WEBHOOK_URL/account-results`.\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> The response from this endpoint only confirms that the submission was successfully enqueued. To get the actual quote or application decision, you must listen for the webhook callback at YOUR_WEBHOOK_URL/account-results or use the [Get Quote](#operation/getQuote) endpoint to check the status.\n</div>\n",
+        "operationId": "submitApplication",
+        "tags": [
+          "Application"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "answers"
+                ],
+                "properties": {
+                  "hr_contact_name": {
+                    "type": "string",
+                    "description": "Name of the HR Representative for the company"
+                  },
+                  "hr_contact_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the HR Representative for the company"
+                  },
+                  "hr_contact_title": {
+                    "type": "string",
+                    "description": "Title of the HR Representative for the company"
+                  },
+                  "hr_contact_phone": {
+                    "type": "string",
+                    "description": "Phone number of the HR Representative for the company"
+                  },
+                  "answers": {
+                    "type": "array",
+                    "description": "Array of answers to application questions",
+                    "items": {
+                      "$ref": "#/components/schemas/Answer"
+                    }
+                  },
+                  "expiring_dec_page_pdf": {
+                    "type": "string",
+                    "format": "byte",
+                    "description": "Base64 encoded PDF of expiring declaration page"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Application submitted successfully and queued for processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING"
+                      ],
+                      "description": "Status indicating the submission has been queued for processing",
+                      "example": "PENDING"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable message about the submission status",
+                      "example": "SUBMISSION workflow in queue"
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates if the submission was successfully queued",
+                      "example": true
+                    },
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "The account ID for tracking this submission"
+                    }
+                  }
+                },
+                "example": {
+                  "result": "PENDING",
+                  "message": "SUBMISSION workflow in queue",
+                  "success": true,
+                  "account_id": "1a3375d6-3686-4481-84c4-27114b069d75"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/{account_id}": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "get": {
+        "summary": "Get Quote",
+        "description": "Get the current quote for an account",
+        "operationId": "getQuote",
+        "tags": [
+          "Quote"
+        ],
+        "responses": {
+          "200": {
+            "description": "Quote retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "QUOTED",
+                        "REVIEW",
+                        "DECLINED"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "quote": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/{account_id}/subjectivities": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "post": {
+        "summary": "Submit Subjectivities",
+        "description": "Submit subjectivities for a quote. This endpoint is used to provide additional information required by underwriters before binding coverage.\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> After submitting subjectivities, you will receive an updated quote via webhook to YOUR_WEBHOOK_URL/account-results.\n</div>\n",
+        "operationId": "submitSubjectivities",
+        "tags": [
+          "Quote"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subjectivities"
+                ],
+                "properties": {
+                  "subjectivities": {
+                    "type": "array",
+                    "description": "Array of subjectivities to be submitted",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "key",
+                            "file"
+                          ],
+                          "properties": {
+                            "key": {
+                              "type": "string",
+                              "description": "The subjectivity key"
+                            },
+                            "file": {
+                              "type": "string",
+                              "format": "byte",
+                              "description": "Base64 encoded file for upload type"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "key",
+                            "answer"
+                          ],
+                          "properties": {
+                            "key": {
+                              "type": "string",
+                              "description": "The subjectivity key"
+                            },
+                            "answer": {
+                              "oneOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              ],
+                              "description": "The answer to the subjectivity question"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subjectivities submitted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/{account_id}/change-coverage": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "post": {
+        "summary": "Change Selected Coverage",
+        "description": "Change the selected coverage option for a quote",
+        "operationId": "changeCoverage",
+        "tags": [
+          "Quote"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "coverage_line"
+                ],
+                "properties": {
+                  "coverage_line": {
+                    "type": "string",
+                    "enum": [
+                      "do",
+                      "epli",
+                      "fid",
+                      "mpl",
+                      "crm"
+                    ]
+                  },
+                  "selected_option": {
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "type": "string"
+                  },
+                  "retention": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Coverage changed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-notice": "<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> After changing coverage, you will receive an updated quote via webhook to YOUR_WEBHOOK_URL/account-results.\n</div>\n"
+      }
+    },
+    "/account/{account_id}/change-subcoverage": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "post": {
+        "summary": "Change Sub Coverage",
+        "description": "Change the selected sub-coverage option for a quote",
+        "operationId": "changeSubCoverage",
+        "tags": [
+          "Quote"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subcoverage_name",
+                  "selected_option"
+                ],
+                "properties": {
+                  "subcoverage_name": {
+                    "type": "string"
+                  },
+                  "selected_option": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sub-coverage changed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-notice": "<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> After changing sub-coverage, you will receive an updated quote via webhook to YOUR_WEBHOOK_URL/account-results.\n</div>\n"
+      }
+    },
+    "/policy/{account_id}/bind": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "post": {
+        "summary": "Bind a Policy",
+        "description": "Bind coverage for a quote. This endpoint is used to finalize the policy and begin coverage.\n\n<div style=\"background-color: rgb(143,188,212); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Note:</strong> In order to bind coverage, you will need to have all subjectivities answered and cleared by Counterpart. You can verify this by checking if the `can_bind` variable is set to `true` on the Quote object.\n</div>\n",
+        "operationId": "bindPolicy",
+        "tags": [
+          "Policy"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "effective_date"
+                ],
+                "properties": {
+                  "effective_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Date that the company wants coverage to begin (YYYY-MM-DD)"
+                  },
+                  "hr_contact_name": {
+                    "type": "string",
+                    "description": "Name of the HR Representative for the company"
+                  },
+                  "hr_contact_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email of the HR Representative for the company"
+                  },
+                  "hr_contact_title": {
+                    "type": "string",
+                    "description": "Title of the HR Representative for the company"
+                  },
+                  "hr_contact_phone": {
+                    "type": "string",
+                    "description": "Phone number of the HR Representative for the company"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Policy bound successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "BOUND"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "x-successNote": "<div style=\"background-color: rgb(106,193,116); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Success!</strong> Your policy has been bound successfully. The policy details and PDFs will be sent via webhook to YOUR_WEBHOOK_URL/policy-results.\n</div>\n"
+          }
+        }
+      }
+    },
+    "/policy/{account_id}": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "get": {
+        "summary": "Get Policy",
+        "description": "Get the policy details for an account",
+        "operationId": "getPolicy",
+        "tags": [
+          "Policy"
+        ],
+        "responses": {
+          "200": {
+            "description": "Policy retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/test/account/{account_id}": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "The account ID"
+        }
+      ],
+      "post": {
+        "summary": "Issue Quote",
+        "description": "Execute an action related to a Quote in the sandbox environment",
+        "operationId": "issueQuote",
+        "tags": [
+          "Sandbox"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "clear_subjectivities",
+                      "approve_quote",
+                      "decline_application"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "QUOTED"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "x-successNote": "<div style=\"background-color: rgb(106,193,116); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Success!</strong> Your action has been executed successfully. The quote results will be sent via webhook to YOUR_WEBHOOK_URL/account-results.\n</div>\n"
+          }
+        }
+      }
+    },
+    "/healthcheck": {
+      "get": {
+        "summary": "Healthcheck",
+        "description": "Check if the API is up and responding",
+        "operationId": "healthcheck",
+        "tags": [
+          "Sandbox"
+        ],
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "Ok"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "x-successNote": "<div style=\"background-color: rgb(106,193,116); padding: 15px; border-radius: 4px; color: black; margin: 10px 0;\">\n  <strong>Success!</strong> The API is up and responding normally.\n</div>\n"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-KEY",
+        "description": "API key for authentication"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "Standard error response object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message"
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable error code"
+          }
+        }
+      },
+      "Question": {
+        "type": "object",
+        "description": "A question object representing a single question in the application",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Unique identifier for the question"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "number",
+              "radio",
+              "checkbox",
+              "date",
+              "file"
+            ],
+            "description": "Type of question input (text, number, radio button, checkbox, date, or file upload)"
+          },
+          "title": {
+            "type": "string",
+            "description": "The question text to be displayed to the user"
+          },
+          "help_text": {
+            "type": "string",
+            "description": "Additional help text or instructions for the question"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the question must be answered"
+          },
+          "placeholder": {
+            "type": "string",
+            "description": "Placeholder text to show in the input field"
+          },
+          "dependant_on": {
+            "type": "string",
+            "description": "Condition that determines if this question should be shown (based on other answers)"
+          },
+          "allow_multiple_answers": {
+            "type": "boolean",
+            "description": "Whether multiple answers are allowed for this question"
+          },
+          "options_serializer": {
+            "type": "array",
+            "description": "Available options for radio or checkbox questions",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Unique identifier for the option"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Display text for the option"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Answer": {
+        "type": "object",
+        "description": "An answer object representing a response to a question",
+        "required": [
+          "key",
+          "answer"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The question key being answered"
+          },
+          "answer": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Text, date, or single selection answer"
+              },
+              {
+                "type": "number",
+                "description": "Numeric answer"
+              },
+              {
+                "type": "array",
+                "description": "Multiple selections answer",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "Subjectivity": {
+        "type": "object",
+        "description": "A subjectivity object representing additional information required by underwriters",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The subjectivity key"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "upload",
+              "question"
+            ],
+            "description": "Type of subjectivity (file upload or question)"
+          },
+          "cleared": {
+            "type": "boolean",
+            "description": "Whether the subjectivity has been cleared by underwriters"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the subjectivity is required for binding"
+          },
+          "question": {
+            "type": "string",
+            "description": "Question text for question type subjectivities"
+          },
+          "details": {
+            "type": "string",
+            "description": "Additional details or instructions for the subjectivity"
+          },
+          "options_serializer": {
+            "type": "array",
+            "description": "Available options for question type subjectivities",
+            "items": {
+              "type": "string"
+            }
+          },
+          "file": {
+            "type": "string",
+            "format": "byte",
+            "description": "Base64 encoded file for upload type subjectivities"
+          }
+        }
+      },
+      "WorkflowStatusResponse": {
+        "type": "object",
+        "description": "Workflow status webhook response indicating the current state of a submission workflow",
+        "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "PROCESSING",
+              "SUCCESS",
+              "FAILED"
+            ],
+            "description": "Current status of the workflow"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable message about the workflow status"
+          },
+          "can_bind": {
+            "type": "boolean",
+            "description": "Whether the quote can be bound (typically false until workflow completes)"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/WorkflowQuote"
+          }
+        }
+      },
+      "WorkflowQuote": {
+        "type": "object",
+        "description": "Quote information included in workflow status updates",
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The account ID"
+          },
+          "coverage": {
+            "type": "object",
+            "description": "Coverage details (populated when workflow completes)"
+          },
+          "documents": {
+            "type": "object",
+            "description": "Document URLs and attachments",
+            "properties": {
+              "quote_bundle": {
+                "type": "string",
+                "nullable": true,
+                "description": "URL or base64 encoded quote bundle PDF"
+              },
+              "sample_policy_forms": {
+                "type": "string",
+                "nullable": true,
+                "description": "URL or base64 encoded sample policy forms"
+              },
+              "endorsements": {
+                "type": "string",
+                "nullable": true,
+                "description": "URL or base64 encoded endorsements"
+              },
+              "application": {
+                "type": "string",
+                "nullable": true,
+                "description": "URL or base64 encoded application"
+              }
+            }
+          },
+          "quote_number": {
+            "type": "string",
+            "description": "Unique quote number assigned by Counterpart",
+            "example": "CML-SZ73L6Z-A1225"
+          },
+          "quote_expiration_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Date when the quote expires"
+          },
+          "subjectivities": {
+            "type": "array",
+            "description": "List of subjectivities required before binding",
+            "items": {
+              "$ref": "#/components/schemas/Subjectivity"
+            }
+          },
+          "subjectivities_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to the subjectivities portal for this account"
+          },
+          "counterpart_account_page_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to the Counterpart account page for this submission"
+          },
+          "quota_share": {
+            "type": "array",
+            "nullable": true,
+            "description": "Quota share information when multiple carriers are involved",
+            "items": {
+              "type": "object",
+              "properties": {
+                "percent": {
+                  "type": "integer",
+                  "description": "Percentage of the policy held by this carrier"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Name of the carrier"
+                }
+              }
+            }
+          },
+          "carrier_type": {
+            "type": "string",
+            "enum": [
+              "ADMITTED",
+              "SURPLUS"
+            ],
+            "description": "Type of carrier (ADMITTED or SURPLUS lines)"
+          },
+          "carrier_name": {
+            "type": "string",
+            "description": "Name(s) of the carrier(s) providing coverage"
+          }
+        }
+      }
+    }
+  }
+}
