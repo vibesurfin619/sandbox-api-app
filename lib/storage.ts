@@ -2,6 +2,16 @@ import { StoredApplication, ApplicationStatus } from "./types";
 
 const STORAGE_KEY = "counterpart_applications";
 
+// Normalize application data to ensure all required fields have defaults
+function normalizeApplication(app: any): StoredApplication {
+  return {
+    ...app,
+    questions: app.questions ?? [],
+    answers: app.answers ?? [],
+    coverages: app.coverages ?? [],
+  };
+}
+
 export function saveApplication(application: StoredApplication): void {
   try {
     const applications = getAllApplications();
@@ -35,7 +45,8 @@ export function saveApplication(application: StoredApplication): void {
 export function getApplication(accountId: string): StoredApplication | null {
   try {
     const applications = getAllApplications();
-    return applications.find((app) => app.account_id === accountId) || null;
+    const app = applications.find((app) => app.account_id === accountId);
+    return app ? normalizeApplication(app) : null;
   } catch (error) {
     console.error("Failed to get application:", error);
     return null;
@@ -54,7 +65,12 @@ export function getAllApplications(): StoredApplication[] {
     }
 
     const applications = JSON.parse(stored) as StoredApplication[];
-    return Array.isArray(applications) ? applications : [];
+    if (!Array.isArray(applications)) {
+      return [];
+    }
+    
+    // Normalize all applications to ensure they have required fields
+    return applications.map(normalizeApplication);
   } catch (error) {
     console.error("Failed to get all applications:", error);
     return [];

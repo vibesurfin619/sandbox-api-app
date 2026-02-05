@@ -177,10 +177,15 @@ async function handleRequest(
     // Make the request to the external API
     // Note: Using X-API-KEY as per OpenAPI spec security scheme
     // The description mentions X-Api-Key but the security scheme uses X-API-KEY
+    // Add browser-like headers to avoid Cloudflare bot detection
     const requestHeaders: Record<string, string> = {
       Accept: "application/json",
       "Content-Type": "application/json",
       "X-API-KEY": API_KEY,
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Connection": "keep-alive",
+      "Referer": API_BASE_URL,
     };
 
     // Debug logging in development
@@ -200,10 +205,29 @@ async function handleRequest(
 
     // Parse response
     const responseData = await response.text();
+    
+    // Check if Cloudflare is blocking the request (challenge page or login page)
+    if (responseData.includes('challenge-platform') || 
+        responseData.includes('cf-browser-verification') ||
+        responseData.includes('Just a moment') ||
+        responseData.includes('Checking your browser') ||
+        (responseData.toLowerCase().includes('cloudflare') && response.status === 403)) {
+      console.error('[API Proxy] Cloudflare challenge detected');
+      return NextResponse.json(
+        { 
+          error: "Cloudflare protection detected",
+          message: "The API request was blocked by Cloudflare. This may indicate the proxy needs additional configuration or the API endpoint requires browser-like headers.",
+          hint: "Check if the API endpoint is accessible and if additional headers or proxy configuration is needed."
+        },
+        { status: 403, headers: getCorsHeaders(request) }
+      );
+    }
+    
     let jsonData;
     try {
       jsonData = JSON.parse(responseData);
     } catch {
+      // If it's not JSON and not a Cloudflare page, return as text
       jsonData = responseData;
     }
 

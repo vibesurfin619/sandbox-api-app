@@ -155,7 +155,7 @@ export default function ApplicationDetailPage() {
         ) : application ? (
           <div className="space-y-6">
             {application.status === "draft" || application.status === "in_progress" ? (
-              questions.length > 0 ? (
+              questions?.length > 0 ? (
                 <ApplicationForm
                   accountId={accountId}
                   questions={questions}
@@ -180,7 +180,7 @@ export default function ApplicationDetailPage() {
                   </p>
                   <ApplicationForm
                     accountId={accountId}
-                    questions={questions}
+                    questions={questions || []}
                     initialAnswers={application.answers}
                     applicationData={application}
                   />

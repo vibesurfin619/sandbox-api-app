@@ -44,8 +44,8 @@ interface ApplicationCardProps {
 }
 
 export function ApplicationCard({ application, onDelete }: ApplicationCardProps) {
-  const answeredCount = application.answers.length
-  const totalQuestions = application.questions.length
+  const answeredCount = application.answers?.length ?? 0
+  const totalQuestions = application.questions?.length ?? 0
   const progress = totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0
 
   const statusColor = statusColors[application.status] || statusColors.draft
@@ -80,11 +80,11 @@ export function ApplicationCard({ application, onDelete }: ApplicationCardProps)
         <div>
           <p className="text-sm font-medium mb-2">Coverages</p>
           <div className="flex flex-wrap gap-2">
-            {application.coverages.map((coverage) => (
+            {application.coverages?.map((coverage) => (
               <Badge key={coverage} variant="outline" className="text-xs">
                 {coverage.toUpperCase()}
               </Badge>
-            ))}
+            )) ?? <span className="text-xs text-muted-foreground">No coverages</span>}
           </div>
         </div>
 
