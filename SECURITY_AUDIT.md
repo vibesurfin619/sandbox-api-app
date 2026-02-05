@@ -1,129 +1,171 @@
 # Security Audit Report
 
-**Date:** 2024  
+**Date:** 2024 (Updated: December 2024)  
 **Application:** Counterpart Application Manager  
 **Framework:** Next.js 14 (App Router)
 
 ## Executive Summary
 
-This security audit identified **10 security vulnerabilities** ranging from **CRITICAL** to **MEDIUM** severity. The most critical issue is the exposure of API keys through the `NEXT_PUBLIC_` environment variable prefix, which makes the API key accessible in the client-side JavaScript bundle.
+This security audit identified **10 security vulnerabilities** ranging from **CRITICAL** to **MEDIUM** severity. **3 critical vulnerabilities have been resolved** since the initial audit:
+- ✅ API key exposure fixed (removed `NEXT_PUBLIC_` prefix)
+- ✅ CORS policy restricted to allowed origins
+- ✅ Path traversal protection implemented
+
+**Remaining vulnerabilities:** 7 issues still need attention, primarily around rate limiting, input validation, and authentication.
+
+## Security Status Summary
+
+| Status | Count | Details |
+|--------|-------|---------|
+| ✅ **Resolved** | 3 | API key exposure, CORS policy, Path traversal |
+| ⚠️ **Partially Resolved** | 1 | Error information disclosure |
+| 🔴 **Critical** | 0 | All critical issues resolved |
+| 🟠 **High** | 2 | Rate limiting, Input validation (body size) |
+| 🟡 **Medium** | 5 | File upload limits, Authentication, CSRF, Storage, Error sanitization |
 
 ---
 
 ## Critical Vulnerabilities
 
-### 1. 🔴 CRITICAL: API Key Exposure via NEXT_PUBLIC_ Prefix
+### 1. ✅ RESOLVED: API Key Exposure via NEXT_PUBLIC_ Prefix
 
+**Status:** **FIXED** ✅  
 **Location:** 
-- `app/api/counterpart/[...path]/route.ts:4`
-- `lib/api/counterpart.ts:46-47`
-- `context/AUTHENTICATION.md:10`
+- `app/api/counterpart/[...path]/route.ts:6`
+- `lib/api/counterpart.ts:49`
 
-**Issue:**
-The API key is stored in `NEXT_PUBLIC_API_KEY`, which exposes it to the client-side bundle. Even though the proxy route adds it server-side, the environment variable itself is accessible via `process.env.NEXT_PUBLIC_API_KEY` in client-side code.
+**Original Issue:**
+The API key was stored in `NEXT_PUBLIC_API_KEY`, which would expose it to the client-side bundle.
 
-**Risk:**
-- API key can be extracted from the JavaScript bundle
-- Anyone can view the source code and see the API key
-- Enables unauthorized API access
+**Resolution:**
+- ✅ API key now uses `API_KEY` (without `NEXT_PUBLIC_` prefix) - server-side only
+- ✅ Key is only accessed in server-side code (API routes)
+- ✅ `lib/api/counterpart.ts` checks `isBrowser` before accessing the key
+- ✅ Key validation added to ensure it exists before making requests
+- ✅ API key is masked in logs (shows `***` instead of actual value)
 
-**Evidence:**
+**Current Implementation:**
 ```typescript
-// This is exposed to the client bundle!
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+// ✅ CORRECT - Server-side only
+const API_KEY = process.env.API_KEY?.trim();
+
+// In lib/api/counterpart.ts:
+const apiKey = process.env.API_KEY?.trim();
+if (!isBrowser && apiKey) {
+  requestHeaders["X-API-KEY"] = apiKey;
+}
 ```
 
-**Recommendation:**
-1. **Immediately** rename to `API_KEY` (remove `NEXT_PUBLIC_` prefix)
-2. Only access it in server-side code (API routes, server components)
-3. Update `lib/api/counterpart.ts` to never access the key on the client
-4. Add validation to ensure the key is never sent to the client
-
-**Fix:**
-```typescript
-// ❌ WRONG
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
-
-// ✅ CORRECT
-const API_KEY = process.env.API_KEY; // Server-side only
-```
+**Verification:**
+- API key is never exposed to client bundle
+- Server-side proxy adds the key automatically
+- Key validation prevents requests without proper configuration
 
 ---
 
-### 2. 🔴 CRITICAL: Open CORS Policy (Wildcard Origin)
+### 2. ✅ RESOLVED: Open CORS Policy (Wildcard Origin)
 
-**Location:** `app/api/counterpart/[...path]/route.ts:10, 102`
+**Status:** **FIXED** ✅  
+**Location:** `app/api/counterpart/[...path]/route.ts:8-88`
 
-**Issue:**
-The API proxy allows requests from any origin (`Access-Control-Allow-Origin: *`), enabling any website to make requests through your proxy.
+**Original Issue:**
+The API proxy allowed requests from any origin (`Access-Control-Allow-Origin: *`), enabling any website to make requests through the proxy.
 
-**Risk:**
-- Cross-site request forgery (CSRF) attacks
-- Unauthorized websites can use your API proxy
-- Potential for abuse and rate limit exhaustion
+**Resolution:**
+- ✅ CORS restricted to specific allowed origins via `getAllowedOrigins()` function
+- ✅ Environment variable `ALLOWED_ORIGINS` supported for configuration
+- ✅ `isOriginAllowed()` function validates Origin header against whitelist
+- ✅ Defaults to localhost:300* ports for development
+- ✅ CORS headers only set for allowed origins (empty string for disallowed)
 
-**Recommendation:**
-1. Restrict CORS to specific allowed origins
-2. Use environment variable for allowed origins
-3. Validate Origin header against whitelist
-
-**Fix:**
+**Current Implementation:**
 ```typescript
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+// ✅ CORRECT - Restricted CORS
+const getAllowedOrigins = (): string[] => {
+  const origins = process.env.ALLOWED_ORIGINS;
+  if (origins) {
+    return origins.split(',').map(o => o.trim());
+  }
+  return ['http://localhost:3000', 'http://127.0.0.1:3000'];
+};
 
-const origin = request.headers.get('origin');
-const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : null;
+function isOriginAllowed(origin: string | null): boolean {
+  if (!origin) return false;
+  const allowedOrigins = getAllowedOrigins();
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+  // Allow any localhost:300* port for development
+  const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1):300\d$/;
+  return localhostPattern.test(origin);
+}
 
-return new NextResponse(null, {
-  status: 200,
-  headers: {
+function getCorsHeaders(request: NextRequest): Record<string, string> {
+  const origin = request.headers.get('origin');
+  const allowedOrigin = isOriginAllowed(origin) ? origin : null;
+  return {
     "Access-Control-Allow-Origin": allowedOrigin || "",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Credentials": "true",
-  },
-});
+  };
+}
 ```
+
+**Verification:**
+- Only whitelisted origins can make CORS requests
+- Environment variable allows production configuration
+- Development-friendly defaults for localhost
 
 ---
 
 ## High Severity Vulnerabilities
 
-### 3. 🟠 HIGH: Path Traversal / Injection Vulnerability
+### 3. ✅ RESOLVED: Path Traversal / Injection Vulnerability
 
-**Location:** `app/api/counterpart/[...path]/route.ts:64`
+**Status:** **FIXED** ✅  
+**Location:** `app/api/counterpart/[...path]/route.ts:18-56, 154-159`
 
-**Issue:**
-The proxy route reconstructs paths from user input without validation, allowing path traversal attacks.
+**Original Issue:**
+The proxy route reconstructed paths from user input without validation, allowing path traversal attacks.
 
-**Risk:**
-- Attackers can access unintended API endpoints
-- Potential SSRF (Server-Side Request Forgery) if internal endpoints are accessible
-- Bypass intended API restrictions
+**Resolution:**
+- ✅ `validatePath()` function implemented with comprehensive validation
+- ✅ Rejects dangerous patterns: `..`, `//`, `\`, URL-encoded variants (`%2e%2e`, `%2f%2f`, `%5c`)
+- ✅ Validates URL decoding to prevent double-encoding attacks
+- ✅ Only allows alphanumeric, hyphens, underscores, and forward slashes
+- ✅ Rejects empty segments and empty paths
+- ✅ Case-insensitive pattern matching
+- ✅ Returns 400 error for invalid paths
 
-**Example Attack:**
-```
-/api/counterpart/../../../admin/users
-/api/counterpart/application/123%2F..%2F..%2Fadmin
-```
-
-**Recommendation:**
-1. Validate path segments against a whitelist
-2. Sanitize path components
-3. Reject paths with `..`, `//`, or other dangerous patterns
-4. Limit to known API endpoints
-
-**Fix:**
+**Current Implementation:**
 ```typescript
+// ✅ CORRECT - Path validation
 function validatePath(pathSegments: string[]): boolean {
-  // Reject dangerous patterns
-  const dangerous = ['..', '//', '\\', '%2e%2e', '%2f%2f'];
+  if (pathSegments.length === 0) {
+    return false;
+  }
+  
+  const dangerous = ['..', '//', '\\', '%2e%2e', '%2f%2f', '%5c'];
+  
   for (const segment of pathSegments) {
-    if (dangerous.some(d => segment.includes(d))) {
+    if (!segment || segment.trim() === '') {
       return false;
     }
-    // Only allow alphanumeric, hyphens, underscores, and slashes
-    if (!/^[a-zA-Z0-9_\-/]+$/.test(segment)) {
+    
+    const lowerSegment = segment.toLowerCase();
+    if (dangerous.some(d => lowerSegment.includes(d.toLowerCase()))) {
+      return false;
+    }
+    
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      return false;
+    }
+    
+    if (!/^[a-zA-Z0-9_\-/]+$/.test(decoded)) {
       return false;
     }
   }
@@ -134,10 +176,15 @@ function validatePath(pathSegments: string[]): boolean {
 if (!validatePath(params.path)) {
   return NextResponse.json(
     { error: "Invalid path" },
-    { status: 400 }
+    { status: 400, headers: getCorsHeaders(request) }
   );
 }
 ```
+
+**Verification:**
+- Path traversal attacks are blocked
+- URL-encoded attacks are prevented
+- Only valid API paths are allowed
 
 ---
 
@@ -287,43 +334,40 @@ case "file":
 
 ---
 
-### 7. 🟡 MEDIUM: Error Information Disclosure
+### 7. ✅ PARTIALLY RESOLVED: Error Information Disclosure
 
-**Location:** `app/api/counterpart/[...path]/route.ts:107-112`
+**Status:** **PARTIALLY FIXED** ⚠️  
+**Location:** `app/api/counterpart/[...path]/route.ts:239-249`
 
-**Issue:**
+**Original Issue:**
 Error messages may leak sensitive information about the system.
 
-**Risk:**
-- Stack traces exposed to clients
-- Internal error details revealed
-- Potential for information gathering attacks
+**Current Status:**
+- ✅ Error messages are conditionally exposed based on `NODE_ENV`
+- ✅ Production mode hides detailed error messages
+- ✅ Development mode shows error details for debugging
+- ✅ Server-side logging still captures full error details
+- ⚠️ Error messages could be more generic in production
 
-**Recommendation:**
-1. Sanitize error messages in production
-2. Log detailed errors server-side only
-3. Return generic error messages to clients
-4. Use error codes instead of messages
-
-**Fix:**
+**Current Implementation:**
 ```typescript
 } catch (error) {
   console.error("API proxy error:", error);
-  
-  // In production, don't expose error details
   const isProduction = process.env.NODE_ENV === 'production';
-  
   return NextResponse.json(
     { 
-      error: isProduction 
-        ? "Failed to proxy request" 
-        : "Failed to proxy request",
+      error: "Failed to proxy request",
       ...(isProduction ? {} : { message: error instanceof Error ? error.message : "Unknown error" })
     },
-    { status: 500 }
+    { status: 500, headers: getCorsHeaders(request) }
   );
 }
 ```
+
+**Recommendation:**
+- Consider using error codes instead of messages for better security
+- Ensure stack traces are never exposed to clients
+- Add structured error logging for production debugging
 
 ---
 
@@ -459,13 +503,21 @@ npm audit fix
 
 ## Priority Action Items
 
-1. **IMMEDIATE:** Fix API key exposure (remove `NEXT_PUBLIC_` prefix)
-2. **IMMEDIATE:** Restrict CORS to specific origins
-3. **HIGH:** Implement path validation
-4. **HIGH:** Add rate limiting
-5. **MEDIUM:** Add file upload size limits
-6. **MEDIUM:** Sanitize error messages
-7. **MEDIUM:** Implement authentication/authorization
+### ✅ Completed
+1. ✅ **COMPLETED:** Fix API key exposure (removed `NEXT_PUBLIC_` prefix)
+2. ✅ **COMPLETED:** Restrict CORS to specific origins
+3. ✅ **COMPLETED:** Implement path validation
+
+### 🔴 High Priority (Remaining)
+4. **HIGH:** Add rate limiting to prevent API abuse
+5. **HIGH:** Add request body size limits to prevent DoS attacks
+
+### 🟡 Medium Priority (Remaining)
+6. **MEDIUM:** Add file upload size limits in `QuestionField.tsx`
+7. **MEDIUM:** Further sanitize error messages (use error codes)
+8. **MEDIUM:** Implement authentication/authorization
+9. **MEDIUM:** Add CSRF protection
+10. **MEDIUM:** Consider server-side storage for sensitive data (currently acceptable for sandbox)
 
 ---
 
@@ -481,10 +533,22 @@ npm audit fix
 
 ## Conclusion
 
-The application has several security vulnerabilities that need immediate attention, particularly the API key exposure and open CORS policy. While the application appears to be a sandbox/demo application, these issues should be addressed before any production deployment.
+**Progress Update:** Significant security improvements have been made since the initial audit:
+- ✅ **3 critical vulnerabilities resolved** (API key exposure, CORS policy, path traversal)
+- ✅ **1 medium vulnerability partially resolved** (error information disclosure)
+- ⚠️ **7 vulnerabilities remain** (rate limiting, input validation, authentication, CSRF, file upload limits)
 
-**Overall Security Rating:** ⚠️ **NEEDS IMPROVEMENT**
+The most critical security issues have been addressed. The application now properly protects API keys, restricts CORS access, and validates paths to prevent traversal attacks. Remaining issues are primarily around rate limiting, authentication, and additional input validation.
+
+**Overall Security Rating:** 🟡 **IMPROVED - Additional Work Needed**
+
+**For Production Deployment:**
+- Must implement rate limiting
+- Must add request body size limits
+- Should implement authentication/authorization
+- Should add file upload size validation
+- Consider CSRF protection for state-changing operations
 
 ---
 
-*This audit was conducted on the codebase as of the current date. Regular security audits should be performed, especially before production deployments.*
+*This audit was conducted on the codebase as of December 2024. Regular security audits should be performed, especially before production deployments.*
