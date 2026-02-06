@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useForm, FormProvider } from "react-hook-form"
-import { Question, Answer, AnswerValue, StoredApplication } from "@/lib/types"
+import { Question, Answer, AnswerValue, StoredApplication, SubmitApplicationRequest } from "@/lib/types"
 import { QuestionField } from "./QuestionField"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ import { saveApplication, updateApplicationStatus } from "@/lib/storage"
 import { useDebouncedCallback } from "use-debounce"
 import { generateAnswersForQuestions, generateHrContactData } from "@/lib/faker-utils"
 import { Sparkles } from "lucide-react"
+import { evaluateDependantOn } from "@/lib/expression-evaluator"
 
 interface ApplicationFormProps {
   accountId: string
@@ -104,14 +105,10 @@ export function ApplicationForm({
     })
   }
 
-  // Filter questions based on dependencies
+  // Filter questions based on dependencies using expression evaluator
   const getVisibleQuestions = (): Question[] => {
     return questions.filter((question) => {
-      if (!question.dependant_on) return true
-
-      // Simple dependency check - can be enhanced based on actual dependency format
-      const dependentValue = formValues[question.dependant_on]
-      return dependentValue !== undefined && dependentValue !== "" && dependentValue !== null
+      return evaluateDependantOn(question.dependant_on, formValues)
     })
   }
 
@@ -169,25 +166,45 @@ export function ApplicationForm({
 
     setIsSubmitting(true)
     try {
+      // Filter answers to only include visible questions with non-empty values
       const answers: Answer[] = Object.entries(formValues)
         .filter(([key]) => {
           const question = questions.find((q) => q.key === key)
           return question && getVisibleQuestions().includes(question)
+        })
+        .filter(([_, value]) => {
+          // Filter out empty values
+          if (Array.isArray(value)) return value.length > 0
+          if (typeof value === "string") return value.trim() !== ""
+          return value !== null && value !== undefined && value !== ""
         })
         .map(([key, value]) => ({
           key,
           answer: value,
         }))
 
+      // Build request payload, omitting empty fields
+      const requestPayload: SubmitApplicationRequest = {
+        answers,
+      }
+
+      // Only include HR contact fields if they have non-empty values
+      if (hrContact.name?.trim()) {
+        requestPayload.hr_contact_name = hrContact.name.trim()
+      }
+      if (hrContact.email?.trim()) {
+        requestPayload.hr_contact_email = hrContact.email.trim()
+      }
+      if (hrContact.title?.trim()) {
+        requestPayload.hr_contact_title = hrContact.title.trim()
+      }
+      if (hrContact.phone?.trim()) {
+        requestPayload.hr_contact_phone = hrContact.phone.trim()
+      }
+
       await submitApplication(
         accountId,
-        {
-          answers,
-          hr_contact_name: hrContact.name || undefined,
-          hr_contact_email: hrContact.email || undefined,
-          hr_contact_title: hrContact.title || undefined,
-          hr_contact_phone: hrContact.phone || undefined,
-        },
+        requestPayload,
         addApiCall
       )
 
@@ -260,6 +277,7 @@ export function ApplicationForm({
                 value={formValues[question.key]}
                 onChange={(value) => form.setValue(question.key, value)}
                 error={form.formState.errors[question.key]?.message as string}
+                allAnswers={formValues}
               />
             ))}
           </div>

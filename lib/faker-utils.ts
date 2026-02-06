@@ -276,7 +276,23 @@ export async function generateAnswerForQuestion(question: Question): Promise<Ans
       // Default number
       return faker.number.int({ min: 1, max: 10000 })
 
+    case "boolean":
+      // For boolean questions, use default Yes/No options if options_serializer is empty
+      const booleanOptions = 
+        (!question.options_serializer || question.options_serializer.length === 0)
+          ? [
+              { id: "Yes", text: "Yes", disabled_expression: null },
+              { id: "No", text: "No", disabled_expression: null },
+            ]
+          : question.options_serializer || []
+      
+      if (booleanOptions.length > 0) {
+        return faker.helpers.arrayElement(booleanOptions).id
+      }
+      return undefined
+
     case "radio":
+    case "select":
       if (question.options_serializer && question.options_serializer.length > 0) {
         return faker.helpers.arrayElement(question.options_serializer).id
       }

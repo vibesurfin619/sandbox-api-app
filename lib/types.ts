@@ -1,10 +1,26 @@
 // Types extracted from OpenAPI spec
 
-export type QuestionType = "text" | "number" | "radio" | "checkbox" | "date" | "file";
+export type QuestionType = "text" | "number" | "radio" | "checkbox" | "date" | "file" | "boolean" | "select";
+
+// Expression object type for nested expression structures
+export type ExpressionObject = 
+  | { $eq: [string | ExpressionObject, any] }
+  | { $ne: [string | ExpressionObject, any] }
+  | { $and: ExpressionObject[] }
+  | { $or: ExpressionObject[] }
+  | { $not: ExpressionObject }
+  | string
+  | boolean
+  | number;
 
 export interface QuestionOption {
   id: string;
   text: string;
+  disabled_expression?: {
+    action: "hide" | "disable" | "show";
+    expression: ExpressionObject;
+    autoSelect?: ExpressionObject;
+  } | null;
 }
 
 export interface Question {
