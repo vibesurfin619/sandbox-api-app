@@ -33,6 +33,7 @@ export interface Question {
   dependant_on?: string | null;
   allow_multiple_answers?: boolean;
   options_serializer?: QuestionOption[];
+  section?: string | null;
 }
 
 export type AnswerValue = string | number | string[];

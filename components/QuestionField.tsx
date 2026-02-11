@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { format } from "date-fns"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, Link2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { evaluateObjectExpression } from "@/lib/expression-evaluator"
 import {
@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 
 interface QuestionFieldProps {
   question: Question
@@ -40,6 +41,7 @@ interface QuestionFieldProps {
   error?: string
   name: string
   allAnswers?: Record<string, AnswerValue>
+  allQuestions?: Question[]
 }
 
 // Default Yes/No options for boolean questions
@@ -55,6 +57,46 @@ const DEFAULT_BOOLEAN_OPTIONS: QuestionOption[] = [
     disabled_expression: null,
   },
 ]
+
+/**
+ * Extracts question keys from a dependant_on expression
+ */
+function extractDependentQuestionKeys(
+  dependantOn: string | null | undefined,
+  allQuestions: Question[] = []
+): string[] {
+  if (!dependantOn) {
+    return []
+  }
+
+  const keys: Set<string> = new Set()
+
+  // If it's a string expression, extract $variable references
+  if (typeof dependantOn === "string") {
+    // Match patterns like $variable_name or ($variable_name == 'value')
+    const variableMatches = dependantOn.match(/\$(\w+)/g)
+    if (variableMatches) {
+      variableMatches.forEach((match) => {
+        const key = match.slice(1) // Remove $ prefix
+        keys.add(key)
+      })
+    }
+  } else if (typeof dependantOn === "object" && dependantOn !== null) {
+    // If it's an object expression, recursively extract keys
+    const extractFromObject = (obj: any) => {
+      if (typeof obj === "string" && obj.startsWith("$")) {
+        keys.add(obj.slice(1))
+      } else if (Array.isArray(obj)) {
+        obj.forEach((item) => extractFromObject(item))
+      } else if (typeof obj === "object" && obj !== null) {
+        Object.values(obj).forEach((value) => extractFromObject(value))
+      }
+    }
+    extractFromObject(dependantOn)
+  }
+
+  return Array.from(keys)
+}
 
 /**
  * Gets the options for a question, automatically populating Yes/No options
@@ -122,7 +164,18 @@ export function QuestionField({
   error,
   name,
   allAnswers = {},
+  allQuestions = [],
 }: QuestionFieldProps) {
+  // Check if this question is conditional
+  const isConditional = !!question.dependant_on
+  
+  // Get dependent question keys and titles
+  const dependentKeys = extractDependentQuestionKeys(question.dependant_on, allQuestions)
+  const dependentQuestions = dependentKeys
+    .map((key) => allQuestions.find((q) => q.key === key))
+    .filter((q): q is Question => q !== undefined)
+  
+  const dependentTitles = dependentQuestions.map((q) => q.title)
   // Handle autoSelect logic
   useEffect(() => {
     if (!question.options_serializer) return
@@ -308,12 +361,34 @@ export function QuestionField({
   }
 
   return (
-    <Card className="p-4">
+    <Card className={cn(
+      "p-4 transition-all",
+      isConditional && "border-l-4 border-l-counterpart-secondary bg-counterpart-secondary/30"
+    )}>
       <FormItem>
-        <FormLabel>
-          {question.title}
-          {question.required && <span className="text-destructive ml-1">*</span>}
-        </FormLabel>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <FormLabel className="flex-1">
+            {question.title}
+            {question.required && <span className="text-destructive ml-1">*</span>}
+          </FormLabel>
+          {isConditional && (
+            <Badge variant="outline" className="flex items-center gap-1 text-xs border-counterpart-secondary text-counterpart-primary">
+              <Link2 className="h-3 w-3" />
+              Conditional
+            </Badge>
+          )}
+        </div>
+        {isConditional && dependentTitles.length > 0 && (
+          <div className="mb-3 text-xs text-counterpart-primary/80 bg-counterpart-secondary/50 p-2 rounded border border-counterpart-secondary/50">
+            <span className="font-medium">Depends on: </span>
+            {dependentTitles.map((title, idx) => (
+              <span key={idx}>
+                {idx > 0 && ", "}
+                <span className="italic">&quot;{title}&quot;</span>
+              </span>
+            ))}
+          </div>
+        )}
         <FormControl>{renderInput()}</FormControl>
         {question.help_text && (
           <FormDescription>{question.help_text}</FormDescription>
