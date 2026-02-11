@@ -21,8 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StartApplicationRequest, CoverageType } from "@/lib/types"
 import { startApplication } from "@/lib/api/counterpart"
 import { useApiCallContext } from "@/context/ApiCallContext"
@@ -31,18 +30,91 @@ import { useState, useEffect } from "react"
 import { saveApplication } from "@/lib/storage"
 import { StoredApplication } from "@/lib/types"
 import { generateStartApplicationData } from "@/lib/faker-utils"
-import { Sparkles } from "lucide-react"
+import { 
+  Sparkles, 
+  Briefcase, 
+  Users, 
+  Shield, 
+  Lock, 
+  FileText, 
+  Building2, 
+  Heart, 
+  Ruler,
+  Check
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import type { LucideIcon } from "lucide-react"
 
-const coverageOptions: { value: CoverageType; label: string }[] = [
-  { value: "do", label: "Directors & Officers (DO)" },
-  { value: "epli", label: "Employment Practices Liability (EPLI)" },
-  { value: "fid", label: "Fiduciary (FID)" },
-  { value: "crm", label: "Crime (CRM)" },
-  { value: "mpl", label: "Miscellaneous Professional Liability (MPL)" },
-  { value: "gl", label: "General Liability (GL)" },
-  { value: "ah", label: "Allied Healthcare (AH)" },
-  { value: "ae", label: "Architects, Engineers, & Contractors Professional (AE)" },
-  { value: "isogl", label: "General Liability - ISO (ISOGL)" },
+const coverageOptions: { 
+  value: CoverageType; 
+  label: string; 
+  shortLabel: string;
+  icon: LucideIcon;
+  description: string;
+}[] = [
+  { 
+    value: "do", 
+    label: "Directors & Officers (DO)",
+    shortLabel: "D&O",
+    icon: Briefcase,
+    description: "Protects company leadership"
+  },
+  { 
+    value: "epli", 
+    label: "Employment Practices Liability (EPLI)",
+    shortLabel: "EPLI",
+    icon: Users,
+    description: "Employment-related claims"
+  },
+  { 
+    value: "fid", 
+    label: "Fiduciary (FID)",
+    shortLabel: "Fiduciary",
+    icon: Shield,
+    description: "Fiduciary responsibility protection"
+  },
+  { 
+    value: "crm", 
+    label: "Crime (CRM)",
+    shortLabel: "Crime",
+    icon: Lock,
+    description: "Crime and fraud protection"
+  },
+  { 
+    value: "mpl", 
+    label: "Miscellaneous Professional Liability (MPL)",
+    shortLabel: "MPL",
+    icon: FileText,
+    description: "Professional liability coverage"
+  },
+  { 
+    value: "gl", 
+    label: "General Liability (GL)",
+    shortLabel: "General Liability",
+    icon: Building2,
+    description: "General business liability"
+  },
+  { 
+    value: "ah", 
+    label: "Allied Healthcare (AH)",
+    shortLabel: "Allied Healthcare",
+    icon: Heart,
+    description: "Healthcare professional coverage"
+  },
+  { 
+    value: "ae", 
+    label: "Architects, Engineers, & Contractors Professional (AE)",
+    shortLabel: "Architects & Engineers",
+    icon: Ruler,
+    description: "Design and construction professionals"
+  },
+  { 
+    value: "isogl", 
+    label: "General Liability - ISO (ISOGL)",
+    shortLabel: "ISO GL",
+    icon: Building2,
+    description: "ISO standard general liability"
+  },
 ]
 
 const formSchema = z.object({
@@ -199,25 +271,22 @@ export function StartApplicationForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Start New Application</CardTitle>
-        <CardDescription>
-          Provide company and broker information to begin your insurance application
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <CardTitle>Start New Application</CardTitle>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleGenerateData}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Generate Sample Data
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleGenerateData}
-                className="gap-2"
-              >
-                <Sparkles className="h-4 w-4" />
-                Generate Sample Data
-              </Button>
-            </div>
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Company Information</h3>
               
@@ -455,7 +524,7 @@ export function StartApplicationForm({
               <FormField
                 control={form.control}
                 name="coverages"
-                render={() => (
+                render={({ field }) => (
                   <FormItem>
                     <div className="mb-4">
                       <FormLabel className="text-base">Coverages *</FormLabel>
@@ -463,47 +532,74 @@ export function StartApplicationForm({
                         Select at least one coverage type. Note: MPL cannot be combined with other coverages.
                       </FormDescription>
                     </div>
-                    {coverageOptions.map((item) => (
-                      <FormField
-                        key={item.value}
-                        control={form.control}
-                        name="coverages"
-                        render={({ field }) => {
-                          return (
-                            <FormItem
-                              key={item.value}
-                              className="flex flex-row items-start space-x-3 space-y-0"
-                            >
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value?.includes(item.value)}
-                                  onCheckedChange={(checked) => {
-                                    const current = field.value || []
-                                    if (checked) {
-                                      // If MPL is selected, clear others
-                                      if (item.value === "mpl") {
-                                        field.onChange([item.value])
-                                      } else {
-                                        // If other is selected and MPL is in list, remove MPL
-                                        const filtered = current.filter((v) => v !== "mpl")
-                                        field.onChange([...filtered, item.value])
-                                      }
-                                    } else {
-                                      field.onChange(
-                                        current.filter((value) => value !== item.value)
-                                      )
-                                    }
-                                  }}
-                                />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                {item.label}
-                              </FormLabel>
-                            </FormItem>
-                          )
-                        }}
-                      />
-                    ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {coverageOptions.map((item) => {
+                        const Icon = item.icon
+                        const isSelected = field.value?.includes(item.value) || false
+                        
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => {
+                              const current = field.value || []
+                              if (isSelected) {
+                                field.onChange(
+                                  current.filter((value) => value !== item.value)
+                                )
+                              } else {
+                                // If MPL is selected, clear others
+                                if (item.value === "mpl") {
+                                  field.onChange([item.value])
+                                } else {
+                                  // If other is selected and MPL is in list, remove MPL
+                                  const filtered = current.filter((v) => v !== "mpl")
+                                  field.onChange([...filtered, item.value])
+                                }
+                              }
+                            }}
+                            className={cn(
+                              "relative p-6 rounded-lg border-2 transition-all duration-200",
+                              "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2",
+                              "text-left group",
+                              isSelected
+                                ? "border-counterpart-primary bg-counterpart-primary/5 shadow-md"
+                                : "border-counterpart-secondary/30 bg-white hover:border-counterpart-secondary/50"
+                            )}
+                            aria-pressed={isSelected}
+                          >
+                            <div className="flex flex-col items-start space-y-3">
+                              <div className={cn(
+                                "p-3 rounded-lg transition-colors",
+                                isSelected
+                                  ? "bg-counterpart-primary text-white"
+                                  : "bg-counterpart-secondary/30 text-counterpart-primary"
+                              )}>
+                                <Icon className="h-6 w-6" />
+                              </div>
+                              <div className="flex-1 w-full">
+                                <h4 className={cn(
+                                  "font-semibold text-sm mb-1",
+                                  isSelected ? "text-counterpart-primary" : "text-foreground"
+                                )}>
+                                  {item.shortLabel}
+                                </h4>
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {item.description}
+                                </p>
+                              </div>
+                              {isSelected && (
+                                <div className="absolute top-2 right-2">
+                                  <div className="rounded-full bg-counterpart-primary text-white p-1">
+                                    <Check className="h-3 w-3" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
