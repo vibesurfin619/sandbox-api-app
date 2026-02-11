@@ -1,6 +1,6 @@
 // Types extracted from OpenAPI spec
 
-export type QuestionType = "text" | "number" | "radio" | "checkbox" | "date" | "file" | "boolean" | "select";
+export type QuestionType = "text" | "number" | "radio" | "checkbox" | "date" | "file" | "boolean" | "select" | "currency" | "percentage";
 
 // Expression object type for nested expression structures
 export type ExpressionObject = 

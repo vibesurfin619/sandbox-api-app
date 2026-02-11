@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Question, AnswerValue, QuestionOption } from "@/lib/types"
 import {
   FormItem,
@@ -176,6 +176,12 @@ export function QuestionField({
     .filter((q): q is Question => q !== undefined)
   
   const dependentTitles = dependentQuestions.map((q) => q.title)
+  
+  // State for currency input focus
+  const [isCurrencyFocused, setIsCurrencyFocused] = useState(false)
+  // State for percentage input focus
+  const [isPercentageFocused, setIsPercentageFocused] = useState(false)
+  
   // Handle autoSelect logic
   useEffect(() => {
     if (!question.options_serializer) return
@@ -215,6 +221,83 @@ export function QuestionField({
             value={(value as number) || ""}
             onChange={(e) => onChange(Number(e.target.value))}
           />
+        )
+
+      case "currency":
+        // Format currency value for display
+        const formatCurrency = (val: number | string | undefined): string => {
+          if (!val && val !== 0) return ""
+          const numVal = typeof val === "string" ? parseFloat(val.replace(/[^0-9.-]/g, "")) : val
+          if (isNaN(numVal)) return ""
+          return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }).format(numVal)
+        }
+
+        // Parse currency string to number
+        const parseCurrency = (str: string): number => {
+          const cleaned = str.replace(/[^0-9.-]/g, "")
+          const parsed = parseFloat(cleaned)
+          return isNaN(parsed) ? 0 : parsed
+        }
+
+        const currencyDisplayValue = value ? formatCurrency(value as number) : ""
+
+        return (
+          <div className="relative">
+            <Input
+              type="text"
+              placeholder={question.placeholder || "$0.00"}
+              value={isCurrencyFocused ? (value !== undefined && value !== null ? String(value as number) : "") : currencyDisplayValue}
+              onChange={(e) => {
+                const parsed = parseCurrency(e.target.value)
+                onChange(parsed)
+              }}
+              onFocus={() => setIsCurrencyFocused(true)}
+              onBlur={() => setIsCurrencyFocused(false)}
+              className="pl-7"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+          </div>
+        )
+
+      case "percentage":
+        // Format percentage value for display
+        const formatPercentage = (val: number | string | undefined): string => {
+          if (val === undefined || val === null) return ""
+          const numVal = typeof val === "string" ? parseFloat(val.replace(/[^0-9.-]/g, "")) : val
+          if (isNaN(numVal)) return ""
+          return `${numVal.toFixed(2)}%`
+        }
+
+        // Parse percentage string to number
+        const parsePercentage = (str: string): number => {
+          const cleaned = str.replace(/[^0-9.-]/g, "")
+          const parsed = parseFloat(cleaned)
+          return isNaN(parsed) ? 0 : parsed
+        }
+
+        const percentageDisplayValue = value !== undefined && value !== null ? formatPercentage(value as number) : ""
+
+        return (
+          <div className="relative">
+            <Input
+              type="text"
+              placeholder={question.placeholder || "0.00%"}
+              value={isPercentageFocused ? (value !== undefined && value !== null ? String(value as number) : "") : percentageDisplayValue}
+              onChange={(e) => {
+                const parsed = parsePercentage(e.target.value)
+                onChange(parsed)
+              }}
+              onFocus={() => setIsPercentageFocused(true)}
+              onBlur={() => setIsPercentageFocused(false)}
+              className="pr-7"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+          </div>
         )
 
       case "boolean":

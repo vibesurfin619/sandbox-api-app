@@ -5,7 +5,7 @@ A Next.js application for managing insurance applications using the Counterpart 
 ## Features
 
 - **Application Management**: Create, view, edit, and delete insurance applications
-- **Dynamic Question Forms**: Automatically renders questions based on API response with support for all question types (text, number, radio, checkbox, date, file)
+- **Dynamic Question Forms**: Automatically renders questions based on API response with support for all question types (text, number, currency, percentage, radio, checkbox, date, file, boolean, select)
 - **Auto-save**: Automatically saves application progress to localStorage
 - **API Call Debugging**: Sidebar showing all API requests and responses with full payloads
 - **Brand Compliant**: Uses Counterpart brand colors and styling guidelines

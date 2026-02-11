@@ -276,6 +276,43 @@ export async function generateAnswerForQuestion(question: Question): Promise<Ans
       // Default number
       return faker.number.int({ min: 1, max: 10000 })
 
+    case "currency":
+      // Generate currency values (stored as numbers)
+      const currencyKey = question.key.toLowerCase()
+      const currencyTitle = question.title.toLowerCase()
+      
+      if (currencyKey.includes("revenue") || currencyTitle.includes("revenue") || currencyKey.includes("income") || currencyKey.includes("sales")) {
+        return Number(faker.finance.amount({ min: 100000, max: 10000000, dec: 2 }))
+      }
+      if (currencyKey.includes("limit") || currencyTitle.includes("limit") || currencyKey.includes("coverage")) {
+        return Number(faker.finance.amount({ min: 1000000, max: 50000000, dec: 2 }))
+      }
+      if (currencyKey.includes("premium") || currencyTitle.includes("premium")) {
+        return Number(faker.finance.amount({ min: 1000, max: 100000, dec: 2 }))
+      }
+      // Default currency value
+      return Number(faker.finance.amount({ min: 100, max: 1000000, dec: 2 }))
+
+    case "percentage":
+      // Generate percentage values (stored as numbers, typically 0-100)
+      const percentageKey = question.key.toLowerCase()
+      const percentageTitle = question.title.toLowerCase()
+      
+      if (percentageKey.includes("discount") || percentageTitle.includes("discount")) {
+        return Number(faker.number.float({ min: 0, max: 50, fractionDigits: 2 }))
+      }
+      if (percentageKey.includes("growth") || percentageTitle.includes("growth") || percentageKey.includes("increase")) {
+        return Number(faker.number.float({ min: 0, max: 100, fractionDigits: 2 }))
+      }
+      if (percentageKey.includes("ownership") || percentageTitle.includes("ownership") || percentageKey.includes("stake")) {
+        return Number(faker.number.float({ min: 0, max: 100, fractionDigits: 2 }))
+      }
+      if (percentageKey.includes("margin") || percentageTitle.includes("margin") || percentageKey.includes("profit")) {
+        return Number(faker.number.float({ min: 5, max: 50, fractionDigits: 2 }))
+      }
+      // Default percentage value (0-100)
+      return Number(faker.number.float({ min: 0, max: 100, fractionDigits: 2 }))
+
     case "boolean":
       // For boolean questions, use default Yes/No options if options_serializer is empty
       const booleanOptions = 
