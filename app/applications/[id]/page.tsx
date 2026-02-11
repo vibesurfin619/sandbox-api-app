@@ -39,8 +39,8 @@ export default function ApplicationDetailPage() {
       setError(null)
 
       try {
-        // Try to load from localStorage first
-        const storedApp = getApplication(accountId)
+        // Try to load from SQLite first
+        const storedApp = await getApplication(accountId)
 
         if (storedApp) {
           setApplication(storedApp)
@@ -52,7 +52,7 @@ export default function ApplicationDetailPage() {
             setQuestions(apiResponse.questions)
 
             // Update stored application with latest questions
-            saveApplication({
+            await saveApplication({
               ...storedApp,
               questions: apiResponse.questions,
             })
@@ -78,7 +78,7 @@ export default function ApplicationDetailPage() {
               updated_at: new Date().toISOString(),
             }
             setApplication(newApp)
-            saveApplication(newApp)
+            await saveApplication(newApp)
           } catch (apiError) {
             setError("Application not found")
             toast({

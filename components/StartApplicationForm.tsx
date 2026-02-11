@@ -177,7 +177,7 @@ export function StartApplicationForm({
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
-      saveApplication(newApplication)
+      await saveApplication(newApplication)
 
       toast({
         title: "Application started",

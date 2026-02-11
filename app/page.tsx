@@ -14,32 +14,24 @@ export default function HomePage() {
   const [applications, setApplications] = useState<StoredApplication[]>([])
 
   useEffect(() => {
-    // Load applications from localStorage
-    const loadApplications = () => {
-      const apps = getAllApplications()
+    // Load applications from SQLite
+    const loadApplications = async () => {
+      const apps = await getAllApplications()
       setApplications(apps)
     }
 
     loadApplications()
 
-    // Listen for storage changes (in case of multiple tabs)
-    const handleStorageChange = () => {
-      loadApplications()
-    }
-
-    window.addEventListener("storage", handleStorageChange)
-
-    // Poll for changes (since storage event doesn't fire in same tab)
+    // Poll for changes (SQLite doesn't have cross-tab events like localStorage)
     const interval = setInterval(loadApplications, 1000)
 
     return () => {
-      window.removeEventListener("storage", handleStorageChange)
       clearInterval(interval)
     }
   }, [])
 
-  const handleDelete = (accountId: string) => {
-    if (deleteApplication(accountId)) {
+  const handleDelete = async (accountId: string) => {
+    if (await deleteApplication(accountId)) {
       setApplications((prev) => prev.filter((app) => app.account_id !== accountId))
     }
   }

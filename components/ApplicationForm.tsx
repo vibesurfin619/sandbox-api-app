@@ -64,7 +64,7 @@ export function ApplicationForm({
   const formValues = form.watch()
 
   // Auto-save function
-  const autoSave = useCallback(() => {
+  const autoSave = useCallback(async () => {
     if (!applicationData) return
 
     const answers: Answer[] = Object.entries(formValues)
@@ -78,7 +78,7 @@ export function ApplicationForm({
       }))
 
     try {
-      saveApplication({
+      await saveApplication({
         ...applicationData,
         answers,
         updated_at: new Date().toISOString(),
@@ -97,8 +97,8 @@ export function ApplicationForm({
   }, [formValues, debouncedAutoSave])
 
   // Manual save function
-  const handleSave = () => {
-    autoSave()
+  const handleSave = async () => {
+    await autoSave()
     toast({
       title: "Saved",
       description: "Your progress has been saved.",
@@ -210,7 +210,7 @@ export function ApplicationForm({
 
       // Update status in storage
       if (applicationData) {
-        updateApplicationStatus(accountId, "submitted", new Date().toISOString())
+        await updateApplicationStatus(accountId, "submitted", new Date().toISOString())
       }
 
       toast({
