@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { getAllApplications } from "@/lib/storage"
 import { StoredApplication } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { ApiCallSidebar } from "@/components/ApiCallSidebar"
 import Link from "next/link"
-import { Plus, FileText, DollarSign, CheckCircle, Upload, Mail, UserPlus, Download, Shield, Stethoscope, Ruler, Briefcase } from "lucide-react"
+import { Plus, FileText, DollarSign, CheckCircle, Upload, Mail, UserPlus, Download, Shield, Stethoscope, Ruler, Briefcase, TrendingUp, Target, Lightbulb, ArrowRight } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,13 @@ export default function HomePage() {
 
   // Download Appetite Guide state
   const [isAppetiteGuideDialogOpen, setIsAppetiteGuideDialogOpen] = useState(false)
+
+  // File upload ref
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
 
   useEffect(() => {
     // Load applications from SQLite
@@ -103,10 +110,7 @@ export default function HomePage() {
   // Calculate metrics
   const totalApps = applications.length
   const boundApps = applications.filter(app => app.status === 'bound')
-  const totalPremiumBound = boundApps.reduce((sum, app) => {
-    const premium = app.quote?.premium || 0
-    return sum + premium
-  }, 0)
+  const totalPremiumBound = 0 // TODO: Add premium calculation when quote data is available
   const bindRate = totalApps > 0 ? (boundApps.length / totalApps) * 100 : 0
 
   return (
@@ -182,12 +186,93 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Opportunities */}
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-counterpart-primary mb-4">Opportunities</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* New Product Launch - Architects and Engineers */}
+            <div className="bg-counterpart-secondary/50 border border-counterpart-secondary rounded-lg p-6 shadow-sm hover:shadow-lg transition-shadow">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2.5 rounded-lg bg-counterpart-primary shadow-sm">
+                  <Lightbulb className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-counterpart-primary">New Product Launch</h3>
+                </div>
+              </div>
+              <p className="text-sm text-counterpart-primary mb-4">
+                We've launched Architects and Engineers professional liability coverage. Target your A&E clients with our competitive rates and comprehensive coverage.
+              </p>
+              <div className="flex items-center justify-between pt-3 border-t border-counterpart-secondary">
+                <span className="text-xs text-counterpart-primary/70 font-medium">Action Recommended</span>
+                <Link 
+                  href="/applications/new"
+                  className="flex items-center gap-1 text-sm font-medium text-counterpart-primary hover:opacity-70 transition-opacity"
+                >
+                  Start Application
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Cross-Sell Opportunity */}
+            <div className="bg-counterpart-green-light/30 border border-counterpart-green-light rounded-lg p-6 shadow-sm hover:shadow-lg transition-shadow">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2.5 rounded-lg bg-counterpart-green-light shadow-sm">
+                  <Target className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-counterpart-green-dark">Cross-Sell Opportunity</h3>
+                </div>
+              </div>
+              <p className="text-sm text-counterpart-green-dark mb-4">
+                <strong>8 accounts</strong> currently have Management Liability with us but could benefit from our Professional Liability or General Liability products.
+              </p>
+              <div className="flex items-center justify-between pt-3 border-t border-counterpart-green-light">
+                <span className="text-xs text-counterpart-green-dark font-medium">High Conversion Potential</span>
+                <Link 
+                  href="/applications"
+                  className="flex items-center gap-1 text-sm font-medium text-counterpart-green-dark hover:opacity-70 transition-opacity"
+                >
+                  View Accounts
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Expanded Appetite */}
+            <div className="bg-counterpart-yellow-light/30 border border-counterpart-yellow-light rounded-lg p-6 shadow-sm hover:shadow-lg transition-shadow">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2.5 rounded-lg bg-counterpart-yellow-light shadow-sm">
+                  <TrendingUp className="h-5 w-5 text-counterpart-yellow-dark" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-counterpart-yellow-dark">Expanded Appetite</h3>
+                </div>
+              </div>
+              <p className="text-sm text-counterpart-yellow-dark mb-4">
+                We've expanded Professional Liability appetite to <strong>200 employees</strong>. You have <strong>12 past submissions</strong> that now fall within appetite.
+              </p>
+              <div className="flex items-center justify-between pt-3 border-t border-counterpart-yellow-light">
+                <span className="text-xs text-counterpart-yellow-dark font-medium">Re-submit Eligible</span>
+                <Link 
+                  href="/applications"
+                  className="flex items-center gap-1 text-sm font-medium text-counterpart-yellow-dark hover:opacity-70 transition-opacity"
+                >
+                  View Applications
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Quick Actions */}
         <div>
           <h2 className="text-xl font-semibold text-counterpart-primary mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Link 
-              href="/applications/upload" 
+            <button 
+              onClick={handleUploadClick}
               className="bg-white border border-counterpart-secondary/30 rounded-lg p-6 shadow-sm hover:shadow-lg transition-shadow group"
             >
               <div className="flex flex-col items-center text-center gap-4">
@@ -199,7 +284,13 @@ export default function HomePage() {
                   <p className="text-sm text-muted-foreground">Import existing application data</p>
                 </div>
               </div>
-            </Link>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.json,.csv"
+            />
 
             <Link 
               href="/applications/new" 
