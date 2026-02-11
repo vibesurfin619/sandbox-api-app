@@ -16,16 +16,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
+
+type DateRangePreset = "today" | "last7" | "last30" | "last90" | "lastYear" | "allTime"
 
 export default function HomePage() {
   const [applications, setApplications] = useState<StoredApplication[]>([])
   const [emailAddress, setEmailAddress] = useState("")
   const [recipient, setRecipient] = useState<"retail_agent" | "insured">("retail_agent")
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false)
+  
+  // Date range filter state
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>("allTime")
   
   // Invite Retail Agent state
   const [isInviteAgentDialogOpen, setIsInviteAgentDialogOpen] = useState(false)
@@ -107,9 +119,50 @@ export default function HomePage() {
     setAgentZip("")
   }
 
-  // Calculate metrics
-  const totalApps = applications.length
-  const boundApps = applications.filter(app => app.status === 'bound')
+  // Get date range based on preset
+  const getDateRange = (): { startDate: Date | null; endDate: Date } => {
+    const now = new Date()
+    const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+    
+    switch (dateRangePreset) {
+      case "today":
+        return { 
+          startDate: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0), 
+          endDate 
+        }
+      case "last7":
+        const last7 = new Date(now)
+        last7.setDate(last7.getDate() - 7)
+        return { startDate: new Date(last7.getFullYear(), last7.getMonth(), last7.getDate(), 0, 0, 0, 0), endDate }
+      case "last30":
+        const last30 = new Date(now)
+        last30.setDate(last30.getDate() - 30)
+        return { startDate: new Date(last30.getFullYear(), last30.getMonth(), last30.getDate(), 0, 0, 0, 0), endDate }
+      case "last90":
+        const last90 = new Date(now)
+        last90.setDate(last90.getDate() - 90)
+        return { startDate: new Date(last90.getFullYear(), last90.getMonth(), last90.getDate(), 0, 0, 0, 0), endDate }
+      case "lastYear":
+        const lastYear = new Date(now)
+        lastYear.setFullYear(lastYear.getFullYear() - 1)
+        return { startDate: new Date(lastYear.getFullYear(), lastYear.getMonth(), lastYear.getDate(), 0, 0, 0, 0), endDate }
+      case "allTime":
+      default:
+        return { startDate: null, endDate }
+    }
+  }
+
+  // Filter applications based on date range
+  const { startDate, endDate } = getDateRange()
+  const filteredApplications = applications.filter(app => {
+    if (!startDate) return true
+    const appDate = new Date(app.created_at)
+    return appDate >= startDate && appDate <= endDate
+  })
+
+  // Calculate metrics from filtered applications
+  const totalApps = filteredApplications.length
+  const boundApps = filteredApplications.filter(app => app.status === 'bound')
   const totalPremiumBound = 0 // TODO: Add premium calculation when quote data is available
   const bindRate = totalApps > 0 ? (boundApps.length / totalApps) * 100 : 0
 
@@ -119,16 +172,28 @@ export default function HomePage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Overview of your insurance applications and performance metrics
-            </p>
           </div>
-          <Button asChild>
-            <Link href="/applications/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Start New Application
-            </Link>
-          </Button>
+          <div className="flex items-center gap-3">
+            <Select value={dateRangePreset} onValueChange={(value) => setDateRangePreset(value as DateRangePreset)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="last7">Last 7 Days</SelectItem>
+                <SelectItem value="last30">Last 30 Days</SelectItem>
+                <SelectItem value="last90">Last 3 Months</SelectItem>
+                <SelectItem value="lastYear">Last Year</SelectItem>
+                <SelectItem value="allTime">All Time</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button asChild>
+              <Link href="/applications/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Start New Application
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {/* Metrics Cards */}
