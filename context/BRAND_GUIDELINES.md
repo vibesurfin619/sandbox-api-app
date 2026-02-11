@@ -107,7 +107,7 @@ Semantic colors are used to convey status, states, and feedback throughout the a
 ```tsx
 const statusColors: Record<string, string> = {
   draft: 'bg-counterpart-secondary/30 text-counterpart-primary',
-  submitted: 'bg-counterpart-secondary/50 text-counterpart-primary',
+  submitted: 'bg-counterpart-yellow-light/30 text-counterpart-yellow-dark',
   quoted: 'bg-counterpart-green-light/30 text-counterpart-green-dark',
   review: 'bg-counterpart-yellow-light/50 text-counterpart-yellow-dark',
   declined: 'bg-counterpart-red-light/50 text-counterpart-red-dark',
@@ -206,7 +206,7 @@ Application statuses use specific color combinations:
 | Status | Background | Text Color | Usage |
 |--------|-----------|------------|-------|
 | Draft | `bg-counterpart-secondary/30` | `text-counterpart-primary` | Initial state |
-| Submitted | `bg-counterpart-secondary/50` | `text-counterpart-primary` | Submitted for review |
+| Submitted | `bg-counterpart-yellow-light/30` | `text-counterpart-yellow-dark` | Submitted for review |
 | Quoted | `bg-counterpart-green-light/30` | `text-counterpart-green-dark` | Quote provided |
 | Review | `bg-counterpart-yellow-light/50` | `text-counterpart-yellow-dark` | Under review |
 | Declined | `bg-counterpart-red-light/50` | `text-counterpart-red-dark` | Application declined |

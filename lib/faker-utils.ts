@@ -386,3 +386,68 @@ export async function generateAnswersForQuestions(questions: Question[]): Promis
   
   return answers
 }
+
+/**
+ * Generates fake coverage recommendations with reasons
+ */
+export async function generateCoverageRecommendations(): Promise<Array<{ coverage: CoverageType; reason: string }>> {
+  const faker = await getFaker()
+  
+  const coverageReasons: Record<CoverageType, string[]> = {
+    do: [
+      "Based on your company size and industry, Directors & Officers coverage is essential to protect your leadership team from personal liability claims.",
+      "Your company's growth trajectory and board structure indicate a strong need for D&O protection against shareholder lawsuits.",
+      "Given your industry's regulatory environment, D&O insurance will safeguard your executives from litigation risks.",
+    ],
+    epli: [
+      "With your employee count and industry profile, Employment Practices Liability Insurance is crucial to protect against discrimination and harassment claims.",
+      "Your company's hiring practices and workforce diversity make EPLI coverage a smart investment to mitigate employment-related risks.",
+      "Based on industry trends, EPLI coverage will help protect your business from costly employment disputes and wrongful termination claims.",
+    ],
+    fid: [
+      "Your company's retirement plan and employee benefits structure requires Fiduciary coverage to protect against ERISA violations.",
+      "Given your fiduciary responsibilities with employee benefit plans, this coverage is essential to protect your company and plan administrators.",
+      "Fiduciary liability insurance is recommended to safeguard against claims related to mismanagement of employee benefit plans.",
+    ],
+    crm: [
+      "Your business operations and financial handling make Crime coverage important to protect against employee theft and fraud.",
+      "Based on your company's cash flow and transaction volume, Crime insurance will protect against internal and external criminal acts.",
+      "Crime coverage is recommended to safeguard your business from embezzlement, forgery, and other criminal activities.",
+    ],
+    mpl: [
+      "Your professional services and client relationships make Miscellaneous Professional Liability essential for protecting against errors and omissions.",
+      "Given the nature of your business, MPL coverage will protect against claims of professional negligence and service failures.",
+      "Based on your industry, MPL insurance is crucial to cover professional liability risks not covered by other policies.",
+    ],
+    gl: [
+      "General Liability coverage is fundamental for your business to protect against third-party bodily injury and property damage claims.",
+      "Your business operations and customer interactions make GL coverage essential for comprehensive risk protection.",
+      "General Liability insurance is recommended as a baseline coverage to protect your business from common liability exposures.",
+    ],
+    ah: [
+      "Your healthcare-related services require Allied Healthcare coverage to protect against professional liability specific to medical practices.",
+      "Given your involvement in healthcare services, AH coverage will protect against medical malpractice and professional liability claims.",
+      "Allied Healthcare coverage is essential for your business to protect against healthcare-specific professional risks.",
+    ],
+    ae: [
+      "Your design and construction services make Architects & Engineers coverage critical for protecting against design errors and professional negligence.",
+      "Based on your professional services, AE coverage will safeguard against claims related to design defects and construction failures.",
+      "Architects & Engineers coverage is recommended to protect your firm from professional liability in design and construction projects.",
+    ],
+    isogl: [
+      "ISO General Liability coverage provides standardized protection that may be required by clients or partners in your industry.",
+      "Your business relationships and contracts may benefit from ISO GL coverage for enhanced compatibility and broader acceptance.",
+      "ISO GL coverage offers standardized terms that can provide better alignment with industry expectations and client requirements.",
+    ],
+  }
+  
+  // Generate 2-4 random recommendations
+  const numRecommendations = faker.number.int({ min: 2, max: 4 })
+  const allCoverages: CoverageType[] = ["do", "epli", "fid", "crm", "mpl", "gl", "ah", "ae", "isogl"]
+  const selectedCoverages = faker.helpers.arrayElements(allCoverages, { min: numRecommendations, max: numRecommendations })
+  
+  return selectedCoverages.map(coverage => ({
+    coverage,
+    reason: faker.helpers.arrayElement(coverageReasons[coverage]),
+  }))
+}

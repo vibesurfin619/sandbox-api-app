@@ -29,7 +29,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useState, useEffect } from "react"
 import { saveApplication } from "@/lib/storage"
 import { StoredApplication } from "@/lib/types"
-import { generateStartApplicationData } from "@/lib/faker-utils"
+import { generateStartApplicationData, generateCoverageRecommendations } from "@/lib/faker-utils"
 import { 
   Sparkles, 
   Briefcase, 
@@ -40,7 +40,8 @@ import {
   Building2, 
   Heart, 
   Ruler,
-  Check
+  Check,
+  MessageSquare
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LucideIcon } from "lucide-react"
@@ -147,6 +148,8 @@ export function StartApplicationForm({
   const { addApiCall } = useApiCallContext()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
+  const [recommendations, setRecommendations] = useState<Array<{ coverage: CoverageType; reason: string }> | null>(null)
+  const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -520,6 +523,65 @@ export function StartApplicationForm({
 
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Application Settings</h3>
+
+              <div className="pb-4">
+                <Button
+                  type="button"
+                  className="bg-counterpart-primary hover:bg-counterpart-primary/90 text-white gap-2"
+                  onClick={async () => {
+                    setIsGeneratingRecommendations(true)
+                    try {
+                      const recs = await generateCoverageRecommendations()
+                      setRecommendations(recs)
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to generate recommendations. Please try again.",
+                        variant: "destructive",
+                      })
+                    } finally {
+                      setIsGeneratingRecommendations(false)
+                    }
+                  }}
+                  disabled={isGeneratingRecommendations}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  {isGeneratingRecommendations ? "Generating..." : "Provide recommendations"}
+                </Button>
+              </div>
+
+              {recommendations && recommendations.length > 0 && (
+                <div className="space-y-4 pb-4">
+                  <h4 className="text-base font-semibold">Coverage Recommendations</h4>
+                  <div className="space-y-3">
+                    {recommendations.map((rec, index) => {
+                      const coverageOption = coverageOptions.find(opt => opt.value === rec.coverage)
+                      const Icon = coverageOption?.icon || FileText
+                      
+                      return (
+                        <div
+                          key={`${rec.coverage}-${index}`}
+                          className="p-4 rounded-lg border border-counterpart-secondary/30 bg-counterpart-secondary/10"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-counterpart-primary/10 text-counterpart-primary">
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="font-semibold text-sm mb-1">
+                                {coverageOption?.label || rec.coverage}
+                              </h5>
+                              <p className="text-sm text-muted-foreground">
+                                {rec.reason}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               <FormField
                 control={form.control}

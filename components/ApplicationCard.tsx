@@ -23,7 +23,6 @@ const statusColors: Record<ApplicationStatus, { bg: string; text: string }> = {
   in_progress: { bg: "bg-secondary/50", text: "text-primary" },
   submitted: { bg: "bg-secondary/50", text: "text-primary" },
   quoted: { bg: "bg-counterpart-green-light/30", text: "text-counterpart-green-dark" },
-  review: { bg: "bg-counterpart-yellow-light/50", text: "text-counterpart-yellow-dark" },
   declined: { bg: "bg-counterpart-red-light/50", text: "text-counterpart-red-dark" },
   bound: { bg: "bg-counterpart-green-light/50", text: "text-counterpart-green-dark" },
 }
@@ -33,7 +32,6 @@ const statusLabels: Record<ApplicationStatus, string> = {
   in_progress: "In Progress",
   submitted: "Submitted",
   quoted: "Quoted",
-  review: "Under Review",
   declined: "Declined",
   bound: "Bound",
 }

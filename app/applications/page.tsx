@@ -1,0 +1,62 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { getAllApplications, deleteApplication } from "@/lib/storage"
+import { StoredApplication } from "@/lib/types"
+import { ApplicationList } from "@/components/ApplicationList"
+import { Button } from "@/components/ui/button"
+import { ApiCallSidebar } from "@/components/ApiCallSidebar"
+import Link from "next/link"
+import { Plus } from "lucide-react"
+
+export default function ApplicationsPage() {
+  const [applications, setApplications] = useState<StoredApplication[]>([])
+
+  useEffect(() => {
+    // Load applications from SQLite
+    const loadApplications = async () => {
+      const apps = await getAllApplications()
+      setApplications(apps)
+    }
+
+    loadApplications()
+
+    // Poll for changes (SQLite doesn't have cross-tab events like localStorage)
+    const interval = setInterval(loadApplications, 1000)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [])
+
+  const handleDelete = async (accountId: string) => {
+    if (await deleteApplication(accountId)) {
+      setApplications((prev) => prev.filter((app) => app.account_id !== accountId))
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Applications</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Manage your insurance applications and track their status
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/applications/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Start New Application
+            </Link>
+          </Button>
+        </div>
+
+        <ApplicationList applications={applications} onDelete={handleDelete} />
+      </div>
+
+      <ApiCallSidebar />
+    </div>
+  )
+}

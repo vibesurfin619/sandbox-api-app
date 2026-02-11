@@ -552,31 +552,10 @@ export function ApplicationForm({
 
           <Card>
             <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle>HR Contact Information</CardTitle>
-                  <CardDescription>
-                    Provide HR representative contact details (optional but recommended)
-                  </CardDescription>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const fakeHrContact = generateHrContactData()
-                    setHrContact(fakeHrContact)
-                    toast({
-                      title: "HR Contact Generated",
-                      description: "HR contact information has been populated. You can edit as needed.",
-                    })
-                  }}
-                  className="gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Generate
-                </Button>
-              </div>
+              <CardTitle>HR Contact Information</CardTitle>
+              <CardDescription>
+                Provide HR representative contact details (optional but recommended)
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
