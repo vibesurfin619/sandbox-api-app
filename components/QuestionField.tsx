@@ -446,7 +446,9 @@ export function QuestionField({
   return (
     <Card className={cn(
       "p-4 transition-all",
-      isConditional && "border-l-4 border-l-counterpart-secondary bg-counterpart-secondary/30"
+      question.required && "border-l-4 border-l-emerald-500 bg-emerald-50/60",
+      isConditional && !question.required && "border-l-4 border-l-counterpart-secondary bg-counterpart-secondary/30",
+      isConditional && question.required && "border-l-4 border-l-emerald-500 bg-emerald-50/60"
     )}>
       <FormItem>
         <div className="flex items-start justify-between gap-2 mb-2">

@@ -27,7 +27,7 @@ import { startApplication } from "@/lib/api/counterpart"
 import { useApiCallContext } from "@/context/ApiCallContext"
 import { useToast } from "@/components/ui/use-toast"
 import { useState, useEffect } from "react"
-import { saveApplication } from "@/lib/storage"
+import { saveApplication } from "@/lib/api/applications"
 import { StoredApplication } from "@/lib/types"
 import { generateStartApplicationData, generateCoverageRecommendations } from "@/lib/faker-utils"
 import { 
@@ -109,13 +109,6 @@ const coverageOptions: {
     icon: Ruler,
     description: "Design and construction professionals"
   },
-  { 
-    value: "isogl", 
-    label: "General Liability - ISO (ISOGL)",
-    shortLabel: "ISO GL",
-    icon: Building2,
-    description: "ISO standard general liability"
-  },
 ]
 
 const formSchema = z.object({
@@ -133,7 +126,7 @@ const formSchema = z.object({
   broker_email: z.string().email("Invalid email").optional().or(z.literal("")),
   brokerage_office_city: z.string().optional().nullable(),
   brokerage_office_state: z.string().optional().nullable(),
-  coverages: z.array(z.enum(["do", "epli", "fid", "crm", "mpl", "gl", "ah", "ae", "isogl"])).min(1, "Select at least one coverage"),
+  coverages: z.array(z.enum(["do", "epli", "fid", "crm", "mpl", "gl", "ah", "ae"])).min(1, "Select at least one coverage"),
 })
 
 interface StartApplicationFormProps {
@@ -182,7 +175,6 @@ export function StartApplicationForm({
 
   const handleGenerateData = async () => {
     const fakeData = await generateStartApplicationData()
-    // Set all form values with the generated data
     if (fakeData.legal_name) form.setValue("legal_name", fakeData.legal_name)
     if (fakeData.dba_name !== undefined) form.setValue("dba_name", fakeData.dba_name)
     if (fakeData.website) form.setValue("website", fakeData.website)
@@ -236,7 +228,6 @@ export function StartApplicationForm({
         addApiCall
       )
 
-      // Save to localStorage
       const newApplication: StoredApplication = {
         account_id: response.account_id,
         status: "in_progress",
@@ -533,6 +524,15 @@ export function StartApplicationForm({
                     try {
                       const recs = await generateCoverageRecommendations()
                       setRecommendations(recs)
+                      
+                      // Automatically select the recommended coverages
+                      const recommendedCoverages = recs.map(rec => rec.coverage)
+                      form.setValue("coverages", recommendedCoverages)
+                      
+                      toast({
+                        title: "Recommendations Generated",
+                        description: `${recommendedCoverages.length} coverage${recommendedCoverages.length !== 1 ? 's' : ''} selected based on recommendations.`,
+                      })
                     } catch (error) {
                       toast({
                         title: "Error",

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getAllApplications, deleteApplication } from "@/lib/storage"
+import { getAllApplications, deleteApplication } from "@/lib/api/applications"
 import { StoredApplication } from "@/lib/types"
 import { ApplicationList } from "@/components/ApplicationList"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,6 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState<StoredApplication[]>([])
 
   useEffect(() => {
-    // Load applications from SQLite
     const loadApplications = async () => {
       const apps = await getAllApplications()
       setApplications(apps)
@@ -21,8 +20,7 @@ export default function ApplicationsPage() {
 
     loadApplications()
 
-    // Poll for changes (SQLite doesn't have cross-tab events like localStorage)
-    const interval = setInterval(loadApplications, 1000)
+    const interval = setInterval(loadApplications, 5000)
 
     return () => {
       clearInterval(interval)

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { getApplication } from "@/lib/storage"
+import { getApplication } from "@/lib/api/applications"
 import { getApplicationQuestions, startApplication } from "@/lib/api/counterpart"
 import { useApiCallContext } from "@/context/ApiCallContext"
 import { StoredApplication, Question, StartApplicationRequest } from "@/lib/types"
@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { saveApplication } from "@/lib/storage"
+import { saveApplication } from "@/lib/api/applications"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function ApplicationDetailPage() {
@@ -28,6 +28,11 @@ export default function ApplicationDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [])
+
   useEffect(() => {
     if (isNew) {
       setIsLoading(false)
@@ -39,7 +44,6 @@ export default function ApplicationDetailPage() {
       setError(null)
 
       try {
-        // Try to load from SQLite first
         const storedApp = await getApplication(accountId)
 
         if (storedApp) {

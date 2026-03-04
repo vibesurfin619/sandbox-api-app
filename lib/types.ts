@@ -106,7 +106,7 @@ export interface ApiError {
   code?: string;
 }
 
-// Storage types for localStorage
+// Storage types for application persistence
 export interface StoredApplication {
   account_id: string;
   status: ApplicationStatus;

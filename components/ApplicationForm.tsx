@@ -14,11 +14,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { submitApplication } from "@/lib/api/counterpart"
 import { useApiCallContext } from "@/context/ApiCallContext"
 import { useToast } from "@/components/ui/use-toast"
-import { saveApplication, updateApplicationStatus } from "@/lib/storage"
+import { saveApplication, updateApplicationStatus } from "@/lib/api/applications"
 import { useDebouncedCallback } from "use-debounce"
-import { generateAnswersForQuestions, generateHrContactData } from "@/lib/faker-utils"
 import { 
-  Sparkles, 
   Book, 
   Building2, 
   Users, 
@@ -35,10 +33,17 @@ import {
   TrendingUp,
   FileCheck,
   ClipboardList,
-  LucideIcon
+  LucideIcon,
+  CheckCircle2,
+  Home,
+  Eye,
+  Plus,
+  Filter
 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 import { evaluateDependantOn } from "@/lib/expression-evaluator"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 // Helper function to convert text to title case
 const toTitleCase = (str: string): string => {
@@ -143,6 +148,8 @@ export function ApplicationForm({
   const { addApiCall } = useApiCallContext()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [showRequiredOnly, setShowRequiredOnly] = useState(false)
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [hrContact, setHrContact] = useState({
@@ -222,8 +229,12 @@ export function ApplicationForm({
 
   const visibleQuestions = getVisibleQuestions()
 
+  const displayedQuestions = showRequiredOnly
+    ? visibleQuestions.filter((q) => q.required)
+    : visibleQuestions
+
   // Group questions by section
-  const questionsBySection = visibleQuestions.reduce((acc, question) => {
+  const questionsBySection = displayedQuestions.reduce((acc, question) => {
     const section = question.section || "General"
     if (!acc[section]) {
       acc[section] = []
@@ -235,14 +246,28 @@ export function ApplicationForm({
   // Get sections in order (preserve order from questions array)
   const sections = Array.from(
     new Set(
-      visibleQuestions.map((q) => q.section || "General")
+      displayedQuestions.map((q) => q.section || "General")
     )
   )
 
-  // Set initial active section
+  // Set initial active section to "General" and scroll to top
   useEffect(() => {
     if (sections.length > 0 && !activeSection) {
-      setActiveSection(sections[0])
+      // Scroll to top of page
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      
+      // Find and set "General" section if it exists, otherwise use first section
+      const generalSection = sections.find(s => s.toLowerCase() === 'general')
+      const initialSection = generalSection || sections[0]
+      setActiveSection(initialSection)
+      
+      // Scroll to the General section after a brief delay to ensure DOM is ready
+      setTimeout(() => {
+        const element = sectionRefs.current[initialSection]
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
     }
   }, [sections, activeSection])
 
@@ -289,7 +314,7 @@ export function ApplicationForm({
   }
 
   // Calculate progress
-  const answeredCount = visibleQuestions.filter((q) => {
+  const answeredCount = displayedQuestions.filter((q) => {
     const value = formValues[q.key]
     if (q.required) {
       if (Array.isArray(value)) return value.length > 0
@@ -298,8 +323,8 @@ export function ApplicationForm({
     return true
   }).length
 
-  const progress = visibleQuestions.length > 0 
-    ? (answeredCount / visibleQuestions.length) * 100 
+  const progress = displayedQuestions.length > 0 
+    ? (answeredCount / displayedQuestions.length) * 100 
     : 0
 
   const requiredQuestions = visibleQuestions.filter((q) => q.required)
@@ -308,25 +333,6 @@ export function ApplicationForm({
     if (Array.isArray(value)) return value.length > 0
     return value !== "" && value !== null && value !== undefined
   })
-
-  const handleGenerateData = async () => {
-    // Generate answers for all visible questions
-    const fakeAnswers = await generateAnswersForQuestions(visibleQuestions)
-    
-    // Set form values
-    Object.entries(fakeAnswers).forEach(([key, value]) => {
-      form.setValue(key, value)
-    })
-    
-    // Generate HR contact data
-    const fakeHrContact = await generateHrContactData()
-    setHrContact(fakeHrContact)
-    
-    toast({
-      title: "Data Generated",
-      description: "Form has been populated with fake data. You can edit any fields as needed.",
-    })
-  }
 
   const handleSubmit = async () => {
     if (!allRequiredAnswered) {
@@ -387,14 +393,11 @@ export function ApplicationForm({
         await updateApplicationStatus(accountId, "submitted", new Date().toISOString())
       }
 
-      toast({
-        title: "Application Submitted",
-        description: "Your application has been submitted successfully.",
-      })
-
-      if (onSuccess) {
-        onSuccess()
-      }
+      // Show confirmation screen
+      setIsSubmitted(true)
+      
+      // Scroll to top to show confirmation
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (error) {
       toast({
         title: "Error",
@@ -406,6 +409,72 @@ export function ApplicationForm({
     }
   }
 
+  // Show confirmation screen if submitted
+  if (isSubmitted) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <Card className="border-2 border-green-200">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto mb-4 w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="h-10 w-10 text-green-600" />
+            </div>
+            <CardTitle className="text-2xl text-green-700">Application Submitted Successfully!</CardTitle>
+            <CardDescription className="text-base mt-2">
+              Your application has been submitted and is now being processed. You will receive updates via email.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Separator />
+            <div className="bg-muted/50 p-4 rounded-lg">
+              <h4 className="font-semibold mb-2">Application Details</h4>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Account ID:</span>
+                  <span className="font-medium">{accountId}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Company:</span>
+                  <span className="font-medium">{applicationData?.company_name || "N/A"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Submitted:</span>
+                  <span className="font-medium">{new Date().toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-4 space-y-3">
+              <Button asChild className="w-full" size="lg">
+                <Link href="/">
+                  <Home className="mr-2 h-5 w-5" />
+                  Go to Dashboard
+                </Link>
+              </Button>
+              
+              <Button asChild variant="outline" className="w-full" size="lg">
+                <a 
+                  href={`https://qa-counterpart.netlify.app/account/${accountId}/overview`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Eye className="mr-2 h-5 w-5" />
+                  View Application
+                </a>
+              </Button>
+              
+              <Button asChild variant="outline" className="w-full" size="lg">
+                <Link href="/applications/new">
+                  <Plus className="mr-2 h-5 w-5" />
+                  Submit New Application
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <FormProvider {...form}>
       <div className="flex gap-6">
@@ -414,9 +483,16 @@ export function ApplicationForm({
           <div className="sticky top-6">
             <div className="pr-4 mb-4">
               <Card>
-                <CardHeader className="text-center">
-                  <CardTitle className="text-sm">Sections</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm text-center">Sections</CardTitle>
                 </CardHeader>
+                <CardContent className="pt-0 pb-4">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+                    <span>Progress</span>
+                    <span>{answeredCount}/{displayedQuestions.length}</span>
+                  </div>
+                  <Progress value={progress} className="h-2" />
+                </CardContent>
               </Card>
             </div>
             <ScrollArea className="h-[calc(100vh-12rem)]">
@@ -486,30 +562,20 @@ export function ApplicationForm({
                 <div>
                   <CardTitle>Application Questions</CardTitle>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGenerateData}
-                  className="gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Generate Sample Data
-                </Button>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50">
+                  <Filter className="h-4 w-4 text-emerald-600" />
+                  <Label htmlFor="required-toggle" className="text-sm font-medium text-emerald-700 cursor-pointer whitespace-nowrap">
+                    Required Only
+                  </Label>
+                  <Switch
+                    id="required-toggle"
+                    checked={showRequiredOnly}
+                    onCheckedChange={setShowRequiredOnly}
+                  />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Progress</span>
-                  <span>
-                    {answeredCount} of {visibleQuestions.length} questions answered
-                  </span>
-                </div>
-                <Progress value={progress} />
-              </div>
-
-              <Separator />
-
               <div className="space-y-8">
                 {sections.map((section) => (
                   <div
