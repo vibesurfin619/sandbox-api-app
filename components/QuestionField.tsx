@@ -218,8 +218,11 @@ export function QuestionField({
           <Input
             type="number"
             placeholder={question.placeholder}
-            value={(value as number) || ""}
-            onChange={(e) => onChange(Number(e.target.value))}
+            value={value !== undefined && value !== null && value !== "" ? value : ""}
+            onChange={(e) => {
+              const val = e.target.value
+              onChange(val === "" ? "" : Number(val))
+            }}
           />
         )
 

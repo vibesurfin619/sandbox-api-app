@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useForm, FormProvider } from "react-hook-form"
 import { Question, Answer, AnswerValue, StoredApplication, SubmitApplicationRequest } from "@/lib/types"
 import { QuestionField } from "./QuestionField"
@@ -37,8 +37,7 @@ import {
   CheckCircle2,
   Home,
   Eye,
-  Plus,
-  Filter
+  Plus
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { evaluateDependantOn } from "@/lib/expression-evaluator"
@@ -229,8 +228,54 @@ export function ApplicationForm({
 
   const visibleQuestions = getVisibleQuestions()
 
+  // When filtering to required-only, also include non-required questions that
+  // required questions depend on — otherwise conditional required questions
+  // can never become visible because their parent question is hidden.
+  const requiredDependencyKeys = useMemo(() => {
+    const depKeys = new Set<string>()
+
+    const extractKeys = (dependantOn: string | null | undefined) => {
+      if (!dependantOn) return
+      if (typeof dependantOn === "string") {
+        const matches = dependantOn.match(/\$(\w+)/g)
+        if (matches) matches.forEach((m) => depKeys.add(m.slice(1)))
+      } else if (typeof dependantOn === "object") {
+        const walk = (obj: any) => {
+          if (typeof obj === "string" && obj.startsWith("$")) {
+            depKeys.add(obj.slice(1))
+          } else if (Array.isArray(obj)) {
+            obj.forEach(walk)
+          } else if (typeof obj === "object" && obj !== null) {
+            Object.values(obj).forEach(walk)
+          }
+        }
+        walk(dependantOn)
+      }
+    }
+
+    questions.forEach((q) => {
+      if (q.required) extractKeys(q.dependant_on)
+    })
+
+    let changed = true
+    while (changed) {
+      changed = false
+      questions.forEach((q) => {
+        if (depKeys.has(q.key) && q.dependant_on) {
+          const before = depKeys.size
+          extractKeys(q.dependant_on)
+          if (depKeys.size > before) changed = true
+        }
+      })
+    }
+
+    return depKeys
+  }, [questions])
+
   const displayedQuestions = showRequiredOnly
-    ? visibleQuestions.filter((q) => q.required)
+    ? visibleQuestions.filter((q) =>
+        q.required || requiredDependencyKeys.has(q.key) || q.dependant_on
+      )
     : visibleQuestions
 
   // Group questions by section
@@ -563,7 +608,7 @@ export function ApplicationForm({
                   <CardTitle>Application Questions</CardTitle>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50">
-                  <Filter className="h-4 w-4 text-emerald-600" />
+                  <Eye className="h-4 w-4 text-emerald-600" />
                   <Label htmlFor="required-toggle" className="text-sm font-medium text-emerald-700 cursor-pointer whitespace-nowrap">
                     Required Only
                   </Label>
