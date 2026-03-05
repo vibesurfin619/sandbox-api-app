@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useForm, FormProvider } from "react-hook-form"
-import { Question, Answer, AnswerValue, StoredApplication, SubmitApplicationRequest } from "@/lib/types"
+import { Question, Answer, AnswerValue, StoredApplication, SubmitApplicationRequest, QuoteResponse } from "@/lib/types"
 import { QuestionField } from "./QuestionField"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { submitApplication } from "@/lib/api/counterpart"
 import { useApiCallContext } from "@/context/ApiCallContext"
 import { useToast } from "@/components/ui/use-toast"
-import { saveApplication, updateApplicationStatus } from "@/lib/api/applications"
+import { saveApplication, updateApplicationStatus, getLocalQuote, saveWebhookResponse } from "@/lib/api/applications"
+import { Textarea } from "@/components/ui/textarea"
 import { useDebouncedCallback } from "use-debounce"
 import { 
   Book, 
@@ -37,7 +38,14 @@ import {
   CheckCircle2,
   Home,
   Eye,
-  Plus
+  Plus,
+  Loader2,
+  RefreshCw,
+  XCircle,
+  Clock,
+  ClipboardPaste,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { evaluateDependantOn } from "@/lib/expression-evaluator"
@@ -148,8 +156,14 @@ export function ApplicationForm({
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const submittedRef = useRef(false)
   const [showRequiredOnly, setShowRequiredOnly] = useState(false)
+  const [quoteData, setQuoteData] = useState<QuoteResponse | null>(null)
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false)
   const [activeSection, setActiveSection] = useState<string | null>(null)
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteValue, setPasteValue] = useState("")
+  const [isPasting, setIsPasting] = useState(false)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [hrContact, setHrContact] = useState({
     name: "",
@@ -179,7 +193,7 @@ export function ApplicationForm({
 
   // Auto-save function
   const autoSave = useCallback(async () => {
-    if (!applicationData) return
+    if (!applicationData || submittedRef.current) return
 
     const answers: Answer[] = Object.entries(formValues)
       .filter(([_, value]) => {
@@ -358,19 +372,25 @@ export function ApplicationForm({
     }
   }
 
-  // Calculate progress
-  const answeredCount = displayedQuestions.filter((q) => {
+  // Calculate progress — split by required vs supplemental
+  const isAnswered = (q: Question) => {
     const value = formValues[q.key]
-    if (q.required) {
-      if (Array.isArray(value)) return value.length > 0
-      return value !== "" && value !== null && value !== undefined
-    }
-    return true
-  }).length
+    if (Array.isArray(value)) return value.length > 0
+    return value !== "" && value !== null && value !== undefined
+  }
 
-  const progress = displayedQuestions.length > 0 
-    ? (answeredCount / displayedQuestions.length) * 100 
-    : 0
+  const requiredDisplayed = displayedQuestions.filter((q) => q.required)
+  const supplementalDisplayed = displayedQuestions.filter((q) => !q.required)
+
+  const requiredAnsweredCount = requiredDisplayed.filter(isAnswered).length
+  const supplementalAnsweredCount = supplementalDisplayed.filter(isAnswered).length
+
+  const requiredProgress = requiredDisplayed.length > 0
+    ? (requiredAnsweredCount / requiredDisplayed.length) * 100
+    : 100
+  const supplementalProgress = supplementalDisplayed.length > 0
+    ? (supplementalAnsweredCount / supplementalDisplayed.length) * 100
+    : 100
 
   const requiredQuestions = visibleQuestions.filter((q) => q.required)
   const allRequiredAnswered = requiredQuestions.every((q) => {
@@ -379,7 +399,82 @@ export function ApplicationForm({
     return value !== "" && value !== null && value !== undefined
   })
 
+  const isTerminalQuoteResult = (result: string) =>
+    result === "QUOTED" || result === "DECLINED" || result === "REVIEW"
+
+  const updateStatusFromQuote = async (quoteResult: string) => {
+    if (!applicationData) return
+    if (quoteResult === "QUOTED") {
+      await updateApplicationStatus(accountId, "quoted", new Date().toISOString())
+    } else if (quoteResult === "DECLINED") {
+      await updateApplicationStatus(accountId, "declined", new Date().toISOString())
+    }
+  }
+
+  const handleRefreshQuote = async () => {
+    setIsLoadingQuote(true)
+    try {
+      const response = await getLocalQuote(accountId)
+      if (response && isTerminalQuoteResult(response.result)) {
+        setQuoteData(response)
+        await updateStatusFromQuote(response.result)
+        toast({ title: "Quote Updated", description: `Result: ${response.result}` })
+      } else {
+        toast({
+          title: "Quote Not Ready",
+          description: "The quote is still being processed. Try again shortly.",
+        })
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to fetch quote",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingQuote(false)
+    }
+  }
+
+  const handlePasteSubmit = async () => {
+    const trimmed = pasteValue.trim()
+    if (!trimmed) return
+
+    let parsed: any
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      toast({ title: "Invalid JSON", description: "The pasted text is not valid JSON.", variant: "destructive" })
+      return
+    }
+
+    if (!parsed.result) {
+      toast({ title: "Invalid Payload", description: "Missing 'result' field in the webhook response.", variant: "destructive" })
+      return
+    }
+
+    setIsPasting(true)
+    try {
+      await saveWebhookResponse(accountId, parsed)
+      setQuoteData(parsed as QuoteResponse)
+      await updateStatusFromQuote(parsed.result)
+      setPasteValue("")
+      setPasteOpen(false)
+      toast({ title: "Quote Applied", description: `Quote result: ${parsed.result}` })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to save webhook response",
+        variant: "destructive",
+      })
+    } finally {
+      setIsPasting(false)
+    }
+  }
+
   const handleSubmit = async () => {
+    debouncedAutoSave.cancel()
+
     if (!allRequiredAnswered) {
       toast({
         title: "Validation Error",
@@ -391,14 +486,12 @@ export function ApplicationForm({
 
     setIsSubmitting(true)
     try {
-      // Filter answers to only include visible questions with non-empty values
       const answers: Answer[] = Object.entries(formValues)
         .filter(([key]) => {
           const question = questions.find((q) => q.key === key)
           return question && getVisibleQuestions().includes(question)
         })
         .filter(([_, value]) => {
-          // Filter out empty values
           if (Array.isArray(value)) return value.length > 0
           if (typeof value === "string") return value.trim() !== ""
           return value !== null && value !== undefined && value !== ""
@@ -408,12 +501,10 @@ export function ApplicationForm({
           answer: value,
         }))
 
-      // Build request payload, omitting empty fields
       const requestPayload: SubmitApplicationRequest = {
         answers,
       }
 
-      // Only include HR contact fields if they have non-empty values
       if (hrContact.name?.trim()) {
         requestPayload.hr_contact_name = hrContact.name.trim()
       }
@@ -433,15 +524,14 @@ export function ApplicationForm({
         addApiCall
       )
 
-      // Update status in storage
+      submittedRef.current = true
+      debouncedAutoSave.cancel()
+
       if (applicationData) {
         await updateApplicationStatus(accountId, "submitted", new Date().toISOString())
       }
 
-      // Show confirmation screen
       setIsSubmitted(true)
-      
-      // Scroll to top to show confirmation
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (error) {
       toast({
@@ -456,8 +546,12 @@ export function ApplicationForm({
 
   // Show confirmation screen if submitted
   if (isSubmitted) {
+    const quoteResult = quoteData?.result
+    const quote = quoteData?.quote
+
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Submission confirmation */}
         <Card className="border-2 border-green-200">
           <CardHeader className="text-center pb-4">
             <div className="mx-auto mb-4 w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
@@ -465,7 +559,7 @@ export function ApplicationForm({
             </div>
             <CardTitle className="text-2xl text-green-700">Application Submitted Successfully!</CardTitle>
             <CardDescription className="text-base mt-2">
-              Your application has been submitted and is now being processed. You will receive updates via email.
+              Your application has been submitted and is now being processed.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -487,33 +581,230 @@ export function ApplicationForm({
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Quote status card */}
+        <Card className={cn(
+          "border-2",
+          isLoadingQuote && "border-blue-200",
+          quoteResult === "QUOTED" && "border-green-200",
+          quoteResult === "DECLINED" && "border-red-200",
+          quoteResult === "REVIEW" && "border-yellow-200",
+          !isLoadingQuote && !quoteResult && "border-muted"
+        )}>
+          <CardHeader className="pb-4">
+            {isLoadingQuote ? (
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-6 w-6 text-blue-500 animate-spin" />
+                <div>
+                  <CardTitle className="text-lg text-blue-700">Retrieving Quote...</CardTitle>
+                  <CardDescription>Please wait while we fetch your quote from the underwriting engine.</CardDescription>
+                </div>
+              </div>
+            ) : quoteResult === "QUOTED" ? (
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-full">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg text-green-700">Quote Received</CardTitle>
+                  <CardDescription>{quoteData?.message}</CardDescription>
+                </div>
+              </div>
+            ) : quoteResult === "DECLINED" ? (
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-full">
+                  <XCircle className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg text-red-700">Application Declined</CardTitle>
+                  <CardDescription>{quoteData?.message}</CardDescription>
+                </div>
+              </div>
+            ) : quoteResult === "REVIEW" ? (
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-100 rounded-full">
+                  <Clock className="h-6 w-6 text-yellow-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg text-yellow-700">Underwriter Review Required</CardTitle>
+                  <CardDescription>{quoteData?.message || "Your application requires additional review by our underwriting team."}</CardDescription>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-muted rounded-full">
+                  <Clock className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Quote Pending</CardTitle>
+                  <CardDescription>The quote is still being processed. Click refresh to check for updates.</CardDescription>
+                </div>
+              </div>
+            )}
+          </CardHeader>
+
+          {quoteResult === "QUOTED" && quote && (
+            <CardContent className="space-y-4">
+              <Separator />
+              {quote.quote_number && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Quote Number:</span>
+                  <span className="font-medium">{quote.quote_number}</span>
+                </div>
+              )}
+              {quote.effective_date && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Effective Date:</span>
+                  <span className="font-medium">{quote.effective_date}</span>
+                </div>
+              )}
+              {quote.expiration_date && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Expiration Date:</span>
+                  <span className="font-medium">{quote.expiration_date}</span>
+                </div>
+              )}
+              {quote.carrier_name && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Carrier:</span>
+                  <span className="font-medium">{quote.carrier_name}</span>
+                </div>
+              )}
+
+              {quote.coverages && quote.coverages.length > 0 && (
+                <>
+                  <Separator />
+                  <h4 className="font-semibold text-sm">Coverage Details</h4>
+                  <div className="space-y-3">
+                    {quote.coverages.map((cov, idx) => (
+                      <div key={idx} className="bg-muted/50 p-3 rounded-lg">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-medium text-sm uppercase">{cov.coverage_line}</span>
+                          <span className="font-semibold text-green-700">
+                            ${Number(cov.premium).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex gap-4 text-xs text-muted-foreground">
+                          <span>Limit: ${Number(cov.limit).toLocaleString()}</span>
+                          <span>Retention: ${Number(cov.retention).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {quote.total_premium && (
+                <div className="bg-green-50 border border-green-200 p-4 rounded-lg flex justify-between items-center">
+                  <span className="font-semibold text-green-800">Total Premium</span>
+                  <span className="text-xl font-bold text-green-700">
+                    ${Number(quote.total_premium).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
+
+              {quote.can_bind !== undefined && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Bind Eligible:</span>
+                  <span className={cn("font-medium", quote.can_bind ? "text-green-600" : "text-yellow-600")}>
+                    {quote.can_bind ? "Yes" : "No — subjectivities required"}
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          )}
+
+          {/* Refresh button when quote is not yet terminal */}
+          {!isLoadingQuote && !isTerminalQuoteResult(quoteResult || "") && (
+            <CardContent className="pt-0">
+              <Button onClick={handleRefreshQuote} variant="outline" className="w-full" size="lg">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh Quote
+              </Button>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Paste Webhook Response */}
+        {!isTerminalQuoteResult(quoteResult || "") && (
+          <Card className="border-dashed border-2 border-muted-foreground/25">
+            <CardHeader className="pb-3 cursor-pointer" onClick={() => setPasteOpen(!pasteOpen)}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ClipboardPaste className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-base">Paste Webhook Response</CardTitle>
+                </div>
+                {pasteOpen ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+              {!pasteOpen && (
+                <CardDescription className="text-xs mt-1">
+                  Paste the raw JSON from the Counterpart webhook to load your quote.
+                </CardDescription>
+              )}
+            </CardHeader>
+            {pasteOpen && (
+              <CardContent className="space-y-3">
+                <Textarea
+                  placeholder='{"account_id": "...", "result": "QUOTED", "quote": { ... }}'
+                  className="font-mono text-xs min-h-[160px]"
+                  value={pasteValue}
+                  onChange={(e) => setPasteValue(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handlePasteSubmit}
+                    disabled={!pasteValue.trim() || isPasting}
+                    className="flex-1"
+                  >
+                    {isPasting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                    )}
+                    Apply Webhook Response
+                  </Button>
+                  <Button variant="outline" onClick={() => { setPasteValue(""); setPasteOpen(false) }}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
+
+        {/* Navigation actions */}
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            <Button asChild className="w-full" size="lg">
+              <Link href="/">
+                <Home className="mr-2 h-5 w-5" />
+                Go to Dashboard
+              </Link>
+            </Button>
             
-            <div className="pt-4 space-y-3">
-              <Button asChild className="w-full" size="lg">
-                <Link href="/">
-                  <Home className="mr-2 h-5 w-5" />
-                  Go to Dashboard
-                </Link>
-              </Button>
-              
-              <Button asChild variant="outline" className="w-full" size="lg">
-                <a 
-                  href={`https://qa-counterpart.netlify.app/account/${accountId}/overview`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Eye className="mr-2 h-5 w-5" />
-                  View Application
-                </a>
-              </Button>
-              
-              <Button asChild variant="outline" className="w-full" size="lg">
-                <Link href="/applications/new">
-                  <Plus className="mr-2 h-5 w-5" />
-                  Submit New Application
-                </Link>
-              </Button>
-            </div>
+            <Button asChild variant="outline" className="w-full" size="lg">
+              <a 
+                href={`https://qa-counterpart.netlify.app/account/${accountId}/overview`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Eye className="mr-2 h-5 w-5" />
+                View Application
+              </a>
+            </Button>
+            
+            <Button asChild variant="outline" className="w-full" size="lg">
+              <Link href="/applications/new">
+                <Plus className="mr-2 h-5 w-5" />
+                Submit New Application
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -531,12 +822,21 @@ export function ApplicationForm({
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm text-center">Sections</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-0 pb-4">
-                  <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                    <span>Progress</span>
-                    <span>{answeredCount}/{displayedQuestions.length}</span>
+                <CardContent className="pt-0 pb-4 space-y-3">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="font-medium text-foreground">Required</span>
+                      <span className="text-muted-foreground">{requiredAnsweredCount}/{requiredDisplayed.length}</span>
+                    </div>
+                    <Progress value={requiredProgress} className="h-2" />
                   </div>
-                  <Progress value={progress} className="h-2" />
+                  <div>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="font-medium text-foreground">Supplemental</span>
+                      <span className="text-muted-foreground">{supplementalAnsweredCount}/{supplementalDisplayed.length}</span>
+                    </div>
+                    <Progress value={supplementalProgress} className="h-2 [&>div]:bg-muted-foreground/50" />
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -544,18 +844,19 @@ export function ApplicationForm({
               <div className="space-y-3 pr-4">
                 {sections.map((section) => {
                   const sectionQuestions = questionsBySection[section] || []
-                  const sectionAnsweredCount = sectionQuestions.filter((q) => {
-                    const value = formValues[q.key]
-                    if (q.required) {
-                      if (Array.isArray(value)) return value.length > 0
-                      return value !== "" && value !== null && value !== undefined
-                    }
-                    return true
-                  }).length
-                  const sectionProgress = sectionQuestions.length > 0
-                    ? (sectionAnsweredCount / sectionQuestions.length) * 100
-                    : 0
+                  const sectionRequired = sectionQuestions.filter((q) => q.required)
+                  const sectionSupplemental = sectionQuestions.filter((q) => !q.required)
+                  const sectionRequiredAnswered = sectionRequired.filter(isAnswered).length
+                  const sectionSupplementalAnswered = sectionSupplemental.filter(isAnswered).length
+                  const sectionRequiredProgress = sectionRequired.length > 0
+                    ? (sectionRequiredAnswered / sectionRequired.length) * 100
+                    : 100
+                  const sectionSupplementalProgress = sectionSupplemental.length > 0
+                    ? (sectionSupplementalAnswered / sectionSupplemental.length) * 100
+                    : 100
                   const isActive = activeSection === section
+                  const sectionRequiredComplete =
+                    sectionRequired.length === 0 || sectionRequiredAnswered === sectionRequired.length
 
                   return (
                     <Card
@@ -568,27 +869,46 @@ export function ApplicationForm({
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center gap-2 mb-2">
-                          {(() => {
-                            const IconComponent = getSectionIcon(section)
-                            return (
-                              <IconComponent className={cn(
-                                "h-4 w-4 flex-shrink-0 transition-colors",
-                                isActive ? "text-primary" : "text-muted-foreground"
-                              )} />
-                            )
-                          })()}
+                          {sectionRequiredComplete ? (
+                            <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-600" />
+                          ) : (
+                            (() => {
+                              const IconComponent = getSectionIcon(section)
+                              return (
+                                <IconComponent className={cn(
+                                  "h-4 w-4 flex-shrink-0 transition-colors",
+                                  isActive ? "text-primary" : "text-muted-foreground"
+                                )} />
+                              )
+                            })()
+                          )}
                           <span className={cn(
                             "font-medium text-sm truncate",
-                            isActive && "text-primary"
+                            sectionRequiredComplete && "text-green-600",
+                            !sectionRequiredComplete && isActive && "text-primary"
                           )}>
                             {toTitleCase(section)}
                           </span>
                         </div>
-                        <div className="text-xs text-muted-foreground mb-2 ml-6">
-                          {sectionAnsweredCount}/{sectionQuestions.length} answered
-                        </div>
-                        <div className="ml-6">
-                          <Progress value={sectionProgress} className="h-1.5" />
+                        <div className="ml-6 space-y-1.5">
+                          {sectionRequired.length > 0 && (
+                            <div>
+                              <div className="flex justify-between text-xs text-muted-foreground mb-0.5">
+                                <span>Required</span>
+                                <span>{sectionRequiredAnswered}/{sectionRequired.length}</span>
+                              </div>
+                              <Progress value={sectionRequiredProgress} className="h-1.5" />
+                            </div>
+                          )}
+                          {sectionSupplemental.length > 0 && (
+                            <div>
+                              <div className="flex justify-between text-xs text-muted-foreground mb-0.5">
+                                <span>Supplemental</span>
+                                <span>{sectionSupplementalAnswered}/{sectionSupplemental.length}</span>
+                              </div>
+                              <Progress value={sectionSupplementalProgress} className="h-1.5 [&>div]:bg-muted-foreground/50" />
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>

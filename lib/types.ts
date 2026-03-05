@@ -101,6 +101,56 @@ export interface SubmitApplicationResponse {
   account_id: string;
 }
 
+export type QuoteResult = "QUOTED" | "REVIEW" | "DECLINED" | "PENDING" | "PROCESSING";
+
+export interface QuoteCoverage {
+  coverage_line: string;
+  selected_option: number;
+  limit: string;
+  retention: string;
+  premium: string;
+}
+
+export interface QuoteResponse {
+  account_id: string;
+  result: QuoteResult;
+  message: string;
+  can_bind?: boolean;
+  quote?: {
+    account_id: string;
+    effective_date?: string;
+    expiration_date?: string;
+    coverages?: QuoteCoverage[];
+    total_premium?: string;
+    can_bind?: boolean;
+    quote_number?: string;
+    quote_expiration_date?: string | null;
+    documents?: {
+      quote_bundle?: string | null;
+      sample_policy_forms?: string | null;
+      endorsements?: string | null;
+      application?: string | null;
+    };
+    subjectivities?: any[];
+    subjectivities_url?: string;
+    counterpart_account_page_url?: string;
+    quota_share?: Array<{ percent: number; name: string }> | null;
+    carrier_type?: string;
+    carrier_name?: string;
+  };
+  subjectivities?: any[];
+}
+
+export interface IssueQuoteRequest {
+  action: "clear_subjectivities" | "approve_quote" | "decline_application";
+}
+
+export interface IssueQuoteResponse {
+  success: boolean;
+  account_id: string;
+  result?: "QUOTED";
+}
+
 export interface ApiError {
   error: string | string[];
   code?: string;
@@ -118,4 +168,5 @@ export interface StoredApplication {
   created_at: string;
   updated_at: string;
   submitted_at?: string;
+  quote_data?: string;
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Server-side only - never exposed to client
-const API_BASE_URL = process.env.API_BASE_URL || "https://sandbox-api.yourcounterpart.com/partners/v1";
+const API_BASE_URL = process.env.API_BASE_URL || "https://qa-api.yourcounterpart.com/partners/v1";
 // Server-side only - never exposed to client
 const API_KEY = process.env.API_KEY?.trim();
 

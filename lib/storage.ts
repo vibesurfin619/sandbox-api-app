@@ -48,9 +48,16 @@ async function getDatabase(): Promise<Database> {
       start_application_data TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      submitted_at TEXT
+      submitted_at TEXT,
+      quote_data TEXT
     )
   `);
+
+  try {
+    db.run("ALTER TABLE applications ADD COLUMN quote_data TEXT");
+  } catch {
+    // Column already exists
+  }
 
   persistDatabase(db);
   return db;
@@ -80,8 +87,8 @@ export async function saveApplication(
   database.run(
     `INSERT OR REPLACE INTO applications (
       account_id, status, company_name, coverages, answers, questions,
-      start_application_data, created_at, updated_at, submitted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      start_application_data, created_at, updated_at, submitted_at, quote_data
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       application.account_id,
       application.status,
@@ -95,6 +102,7 @@ export async function saveApplication(
       application.created_at || now,
       now,
       application.submitted_at || null,
+      application.quote_data || null,
     ]
   );
 
@@ -127,6 +135,7 @@ export async function getApplication(
       created_at: row.created_at,
       updated_at: row.updated_at,
       submitted_at: row.submitted_at || undefined,
+      quote_data: row.quote_data || undefined,
     });
   }
 
@@ -158,6 +167,7 @@ export async function getAllApplications(): Promise<StoredApplication[]> {
       created_at: row[7] as string,
       updated_at: row[8] as string,
       submitted_at: (row[9] as string) || undefined,
+      quote_data: (row[10] as string) || undefined,
     };
     return normalizeApplication(app);
   });
@@ -192,4 +202,43 @@ export async function updateApplicationStatus(
   });
 
   return true;
+}
+
+export async function saveQuoteData(
+  accountId: string,
+  quoteData: object
+): Promise<boolean> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+  const json = JSON.stringify(quoteData);
+
+  database.run(
+    "UPDATE applications SET quote_data = ?, updated_at = ? WHERE account_id = ?",
+    [json, now, accountId]
+  );
+
+  persistDatabase(database);
+  return true;
+}
+
+export async function getQuoteData(
+  accountId: string
+): Promise<object | null> {
+  const database = await getDatabase();
+  const stmt = database.prepare(
+    "SELECT quote_data FROM applications WHERE account_id = ?"
+  );
+  stmt.bind([accountId]);
+
+  if (stmt.step()) {
+    const row = stmt.getAsObject() as any;
+    stmt.free();
+    if (row.quote_data) {
+      return JSON.parse(row.quote_data);
+    }
+    return null;
+  }
+
+  stmt.free();
+  return null;
 }

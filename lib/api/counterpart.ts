@@ -4,6 +4,7 @@ import {
   GetApplicationQuestionsResponse,
   SubmitApplicationRequest,
   SubmitApplicationResponse,
+  QuoteResponse,
   ApiError,
 } from "../types";
 import { ApiCall } from "@/context/ApiCallContext";
@@ -12,7 +13,7 @@ import { ApiCall } from "@/context/ApiCallContext";
 // Client-side calls go through the proxy route at /api/counterpart
 const API_BASE_URL =
   process.env.API_BASE_URL ||
-  "https://sandbox-api.yourcounterpart.com/partners/v1";
+  "https://qa-api.yourcounterpart.com/partners/v1";
 
 // Helper to mask API key in logs
 function maskApiKey(headers: Record<string, string>): Record<string, string> {
@@ -154,3 +155,17 @@ export async function submitApplication(
     }
   );
 }
+
+export async function getQuote(
+  accountId: string,
+  addApiCall?: (call: Omit<ApiCall, "id" | "timestamp">) => void
+): Promise<QuoteResponse> {
+  return makeApiCall<QuoteResponse>(
+    `/account/${accountId}`,
+    {
+      method: "GET",
+      addApiCall,
+    }
+  );
+}
+

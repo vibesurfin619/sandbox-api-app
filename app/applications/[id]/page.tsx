@@ -8,7 +8,10 @@ import { useApiCallContext } from "@/context/ApiCallContext"
 import { StoredApplication, Question, StartApplicationRequest } from "@/lib/types"
 import { StartApplicationForm } from "@/components/StartApplicationForm"
 import { ApplicationForm } from "@/components/ApplicationForm"
+import { QuoteView } from "@/components/QuoteView"
+import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
@@ -144,7 +147,12 @@ export default function ApplicationDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className={cn(
+        "mx-auto px-4 sm:px-6 lg:px-8 py-8",
+        !application || application.status === "draft" || application.status === "in_progress"
+          ? "max-w-4xl"
+          : "max-w-3xl"
+      )}>
         <div className="mb-6">
           <Button variant="ghost" asChild>
             <Link href="/">
@@ -177,19 +185,31 @@ export default function ApplicationDetailPage() {
                 </Card>
               )
             ) : (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <p className="text-muted-foreground mb-4">
-                    This application has been {application.status}. View-only mode.
-                  </p>
-                  <ApplicationForm
-                    accountId={accountId}
-                    questions={questions || []}
-                    initialAnswers={application.answers}
-                    applicationData={application}
-                  />
-                </CardContent>
-              </Card>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold">{application.company_name}</h1>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Application {application.account_id}
+                    </p>
+                  </div>
+                  <Badge
+                    className={cn(
+                      "text-sm px-3 py-1",
+                      application.status === "quoted" && "bg-green-100 text-green-800 border-green-300",
+                      application.status === "submitted" && "bg-blue-100 text-blue-800 border-blue-300",
+                      application.status === "declined" && "bg-red-100 text-red-800 border-red-300",
+                      application.status === "bound" && "bg-emerald-100 text-emerald-800 border-emerald-300",
+                    )}
+                  >
+                    {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                  </Badge>
+                </div>
+
+                {(application.status === "quoted" || application.status === "submitted" || application.status === "declined" || application.status === "bound") && (
+                  <QuoteView application={application} />
+                )}
+              </div>
             )}
           </div>
         ) : null}

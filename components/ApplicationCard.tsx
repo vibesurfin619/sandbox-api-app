@@ -1,14 +1,18 @@
 "use client"
 
-import { StoredApplication, ApplicationStatus } from "@/lib/types"
+import { StoredApplication, ApplicationStatus, QuoteResponse } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { format } from "date-fns"
-import { Trash2, Edit, Mail } from "lucide-react"
+import { Trash2, Edit, Mail, RefreshCw, Loader2, DollarSign, Eye } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
+import { getQuote } from "@/lib/api/counterpart"
+import { updateApplicationStatus } from "@/lib/api/applications"
+import { useApiCallContext } from "@/context/ApiCallContext"
+import { useToast } from "@/components/ui/use-toast"
 import {
   Dialog,
   DialogContent,
@@ -49,6 +53,9 @@ export function ApplicationCard({ application, onDelete }: ApplicationCardProps)
   const [emailAddress, setEmailAddress] = useState("")
   const [recipient, setRecipient] = useState<"retail_agent" | "insured">("retail_agent")
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false)
+  const [isRefreshingQuote, setIsRefreshingQuote] = useState(false)
+  const { addApiCall } = useApiCallContext()
+  const { toast } = useToast()
 
   const answeredCount = application.answers?.length ?? 0
   const totalQuestions = application.questions?.length ?? 0
@@ -63,6 +70,35 @@ export function ApplicationCard({ application, onDelete }: ApplicationCardProps)
     setIsEmailDialogOpen(false)
     setEmailAddress("")
     setRecipient("retail_agent")
+  }
+
+  const showRefreshQuote = application.status === "submitted"
+
+  const handleRefreshQuote = async () => {
+    setIsRefreshingQuote(true)
+    try {
+      const response = await getQuote(application.account_id, addApiCall)
+      const result = response.result
+      if (result === "QUOTED") {
+        await updateApplicationStatus(application.account_id, "quoted")
+        toast({ title: "Quote Received", description: "The application has been quoted." })
+      } else if (result === "DECLINED") {
+        await updateApplicationStatus(application.account_id, "declined")
+        toast({ title: "Application Declined", description: response.message || "The application was declined." })
+      } else if (result === "REVIEW") {
+        toast({ title: "Under Review", description: "The application requires underwriter review." })
+      } else {
+        toast({ title: "Quote Pending", description: "The quote is still being processed. Try again shortly." })
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to fetch quote",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRefreshingQuote(false)
+    }
   }
 
   return (
@@ -102,6 +138,13 @@ export function ApplicationCard({ application, onDelete }: ApplicationCardProps)
           </div>
         </div>
 
+        {application.status === "quoted" && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-green-600" />
+            <span className="text-sm font-medium text-green-700">Quote available — click to view details</span>
+          </div>
+        )}
+
         {application.updated_at && (
           <p className="text-xs text-muted-foreground">
             Last updated {format(new Date(application.updated_at), "MMM d, yyyy 'at' h:mm a")}
@@ -111,10 +154,39 @@ export function ApplicationCard({ application, onDelete }: ApplicationCardProps)
       <CardFooter className="flex gap-2">
         <Button asChild variant="default" className="flex-1">
           <Link href={`/applications/${application.account_id}`}>
-            <Edit className="mr-2 h-4 w-4" />
-            {application.status === "draft" || application.status === "in_progress" ? "Continue" : "View"}
+            {application.status === "quoted" ? (
+              <>
+                <DollarSign className="mr-2 h-4 w-4" />
+                View Quote
+              </>
+            ) : application.status === "draft" || application.status === "in_progress" ? (
+              <>
+                <Edit className="mr-2 h-4 w-4" />
+                Continue
+              </>
+            ) : (
+              <>
+                <Eye className="mr-2 h-4 w-4" />
+                View
+              </>
+            )}
           </Link>
         </Button>
+        {showRefreshQuote && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefreshQuote}
+            disabled={isRefreshingQuote}
+            title="Refresh Quote"
+          >
+            {isRefreshingQuote ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
+        )}
         <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="icon">

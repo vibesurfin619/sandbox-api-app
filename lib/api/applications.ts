@@ -1,4 +1,4 @@
-import { StoredApplication, ApplicationStatus } from "../types";
+import { StoredApplication, ApplicationStatus, QuoteResponse } from "../types";
 
 export async function getAllApplications(): Promise<StoredApplication[]> {
   const res = await fetch("/api/applications");
@@ -54,4 +54,29 @@ export async function updateApplicationStatus(
   });
   if (!res.ok) return false;
   return true;
+}
+
+export async function getLocalQuote(
+  accountId: string
+): Promise<QuoteResponse | null> {
+  const res = await fetch(`/api/applications/${accountId}/quote`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (data.result === "PENDING" && !data.quote) return null;
+  return data as QuoteResponse;
+}
+
+export async function saveWebhookResponse(
+  accountId: string,
+  data: object
+): Promise<void> {
+  const res = await fetch(`/api/applications/${accountId}/quote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Failed to save webhook response");
+  }
 }
