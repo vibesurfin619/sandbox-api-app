@@ -111,8 +111,52 @@ export interface QuoteCoverage {
   premium: string;
 }
 
+export interface CoverageSublimit {
+  name: string;
+  value: number;
+  key: string;
+  group_name: string;
+  is_additional_limit?: boolean;
+  order: number;
+  options: number[];
+  coverage_key: string;
+}
+
+export interface CoverageRetention {
+  name: string;
+  value: number;
+  key: string | null;
+  group_name: string;
+  order: number;
+  coverage_key: string;
+}
+
+export interface CoverageEndorsement {
+  name: string;
+  id: string;
+  description: string;
+}
+
+export interface CoverageOption {
+  limit: number;
+  retention: number;
+  premium: number;
+}
+
+export interface CoverageLineDetail {
+  limit: number;
+  retention: number;
+  premium: number;
+  limit_range?: number[];
+  retention_range?: number[];
+  limits_of_liability?: CoverageSublimit[];
+  retentions?: CoverageRetention[];
+  endorsements?: CoverageEndorsement[];
+  options?: Record<string, CoverageOption>;
+}
+
 export interface QuoteResponse {
-  account_id: string;
+  account_id?: string;
   result: QuoteResult;
   message: string;
   can_bind?: boolean;
@@ -121,6 +165,7 @@ export interface QuoteResponse {
     effective_date?: string;
     expiration_date?: string;
     coverages?: QuoteCoverage[];
+    coverage?: Record<string, CoverageLineDetail>;
     total_premium?: string;
     can_bind?: boolean;
     quote_number?: string;
@@ -131,14 +176,25 @@ export interface QuoteResponse {
       endorsements?: string | null;
       application?: string | null;
     };
-    subjectivities?: any[];
+    subjectivities?: QuoteSubjectivity[];
     subjectivities_url?: string;
     counterpart_account_page_url?: string;
     quota_share?: Array<{ percent: number; name: string }> | null;
     carrier_type?: string;
     carrier_name?: string;
+    general_endorsements?: CoverageEndorsement[];
   };
-  subjectivities?: any[];
+  subjectivities?: QuoteSubjectivity[];
+}
+
+export interface QuoteSubjectivity {
+  key: string;
+  type: "upload" | "question";
+  cleared: boolean;
+  question: string;
+  required: boolean;
+  details?: string;
+  options_serializer?: string[] | null;
 }
 
 export interface IssueQuoteRequest {
