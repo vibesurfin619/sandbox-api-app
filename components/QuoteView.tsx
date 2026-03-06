@@ -511,25 +511,35 @@ export function QuoteView({ application }: QuoteViewProps) {
         )}
 
         {/* ===== ACTIONS ===== */}
-        <div className="px-7 py-5 flex gap-2.5">
-          {quote.documents?.quote_bundle && (
+        <div className="px-7 py-5 flex flex-wrap gap-2.5">
+          {quote.documents?.sample_policy_forms && (
             <a
-              href={quote.documents.quote_bundle}
+              href={quote.documents.sample_policy_forms}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 py-3 rounded-lg text-[13px] font-medium text-center border border-qc-border text-qc-muted hover:border-qc-teal-mid hover:text-qc-teal transition-all cursor-pointer"
+              className="flex-1 basis-[calc(33%-8px)] py-3 rounded-lg text-[13px] font-medium text-center border border-qc-border text-qc-text hover:border-qc-teal-mid hover:text-qc-teal transition-all cursor-pointer inline-flex items-center justify-center gap-2"
             >
-              Download PDF
+              <FileText className="h-3.5 w-3.5" /> Sample Policy
             </a>
           )}
-          {quote.subjectivities_url && (
+          {quote.documents?.endorsements && (
             <a
-              href={quote.subjectivities_url}
+              href={quote.documents.endorsements}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 py-3 rounded-lg text-[13px] font-medium text-center border border-qc-border text-qc-muted hover:border-qc-teal-mid hover:text-qc-teal transition-all cursor-pointer"
+              className="flex-1 basis-[calc(33%-8px)] py-3 rounded-lg text-[13px] font-medium text-center border border-qc-border text-qc-text hover:border-qc-teal-mid hover:text-qc-teal transition-all cursor-pointer inline-flex items-center justify-center gap-2"
             >
-              Complete Subjectivities
+              <FileText className="h-3.5 w-3.5" /> Endorsements
+            </a>
+          )}
+          {quote.documents?.application && (
+            <a
+              href={quote.documents.application}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 basis-[calc(33%-8px)] py-3 rounded-lg text-[13px] font-medium text-center border border-qc-border text-qc-text hover:border-qc-teal-mid hover:text-qc-teal transition-all cursor-pointer inline-flex items-center justify-center gap-2"
+            >
+              <FileText className="h-3.5 w-3.5" /> Application
             </a>
           )}
           {quote.counterpart_account_page_url && (
@@ -537,43 +547,19 @@ export function QuoteView({ application }: QuoteViewProps) {
               href={quote.counterpart_account_page_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 py-3 rounded-lg text-[13px] font-semibold text-center bg-qc-teal text-white hover:bg-qc-teal-mid transition-all cursor-pointer"
+              className="flex-1 basis-[calc(33%-8px)] py-3 rounded-lg text-[13px] font-semibold text-center bg-qc-teal text-white hover:bg-qc-teal-mid transition-all cursor-pointer inline-flex items-center justify-center gap-2"
             >
-              View on Counterpart →
+              View on Counterpart <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}
           <button
             onClick={handleRefresh}
-            className="py-3 px-4 rounded-lg text-[13px] font-medium border border-qc-border text-qc-muted hover:border-qc-teal-mid hover:text-qc-teal transition-all"
+            className="py-3 px-4 rounded-lg text-[13px] font-medium border border-qc-border text-qc-text hover:border-qc-teal-mid hover:text-qc-teal transition-all"
             title="Refresh quote data"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
         </div>
-
-        {/* ===== DOCUMENTS ROW ===== */}
-        {quote.documents && Object.values(quote.documents).some(Boolean) && (
-          <div className="px-7 pb-5 flex flex-wrap gap-2">
-            {quote.documents.sample_policy_forms && (
-              <a href={quote.documents.sample_policy_forms} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-qc-teal hover:text-qc-teal-mid transition-colors px-2.5 py-1.5 rounded border border-qc-border bg-qc-teal-pale">
-                <FileText className="h-3 w-3" /> Sample Policy <ExternalLink className="h-2.5 w-2.5" />
-              </a>
-            )}
-            {quote.documents.endorsements && (
-              <a href={quote.documents.endorsements} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-qc-teal hover:text-qc-teal-mid transition-colors px-2.5 py-1.5 rounded border border-qc-border bg-qc-teal-pale">
-                <FileText className="h-3 w-3" /> Endorsements <ExternalLink className="h-2.5 w-2.5" />
-              </a>
-            )}
-            {quote.documents.application && (
-              <a href={quote.documents.application} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-qc-teal hover:text-qc-teal-mid transition-colors px-2.5 py-1.5 rounded border border-qc-border bg-qc-teal-pale">
-                <FileText className="h-3 w-3" /> Application <ExternalLink className="h-2.5 w-2.5" />
-              </a>
-            )}
-          </div>
-        )}
 
         {/* ===== SURPLUS NOTICE ===== */}
         {quote.carrier_type === "SURPLUS" && (
