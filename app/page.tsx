@@ -161,7 +161,25 @@ export default function HomePage() {
   // Calculate metrics from filtered applications
   const totalApps = filteredApplications.length
   const boundApps = filteredApplications.filter(app => app.status === 'bound')
-  const totalPremiumBound = 0 // TODO: Add premium calculation when quote data is available
+  const totalPremiumBound = boundApps.reduce((sum, app) => {
+    if (!app.quote_data) return sum
+    try {
+      const quoteData = JSON.parse(app.quote_data)
+      const quote = quoteData?.quote
+      if (quote?.total_premium) {
+        return sum + Number(quote.total_premium)
+      }
+      if (quote?.coverage) {
+        const coveragePremium = Object.entries(quote.coverage)
+          .filter(([key]) => key !== "general_endorsements")
+          .reduce((s, [, detail]: [string, any]) => s + (detail?.premium || 0), 0)
+        return sum + coveragePremium
+      }
+      return sum
+    } catch {
+      return sum
+    }
+  }, 0)
   const bindRate = totalApps > 0 ? (boundApps.length / totalApps) * 100 : 0
 
   return (
