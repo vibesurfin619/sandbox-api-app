@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+        <body className={inter.className}>
         <ApiCallProvider>
           <div className="min-h-screen bg-background">
             <header className="bg-white border-b border-secondary/30">

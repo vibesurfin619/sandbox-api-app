@@ -11,7 +11,6 @@ import { ApplicationForm } from "@/components/ApplicationForm"
 import { QuoteView } from "@/components/QuoteView"
 import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
@@ -186,26 +185,6 @@ export default function ApplicationDetailPage() {
               )
             ) : (
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-bold">{application.company_name}</h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Application {application.account_id}
-                    </p>
-                  </div>
-                  <Badge
-                    className={cn(
-                      "text-sm px-3 py-1",
-                      application.status === "quoted" && "bg-green-100 text-green-800 border-green-300",
-                      application.status === "submitted" && "bg-blue-100 text-blue-800 border-blue-300",
-                      application.status === "declined" && "bg-red-100 text-red-800 border-red-300",
-                      application.status === "bound" && "bg-emerald-100 text-emerald-800 border-emerald-300",
-                    )}
-                  >
-                    {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
-                  </Badge>
-                </div>
-
                 {(application.status === "quoted" || application.status === "submitted" || application.status === "declined" || application.status === "bound") && (
                   <QuoteView application={application} />
                 )}

@@ -19,6 +19,17 @@ const config = {
     },
     extend: {
       colors: {
+        "qc-teal": "#1a4f5c",
+        "qc-teal-mid": "#2a6b7c",
+        "qc-teal-light": "#e8f2f4",
+        "qc-teal-pale": "#f2f7f8",
+        "qc-gold": "#c8a96e",
+        "qc-text": "#1a2e33",
+        "qc-muted": "#7a9099",
+        "qc-border": "#d8e8eb",
+        "qc-bg": "#f5f0e8",
+        "qc-green": "#2d7a52",
+        "qc-amber": "#b5640f",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

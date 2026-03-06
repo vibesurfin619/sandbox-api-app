@@ -1,40 +1,27 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { QuoteResponse, QuoteSubjectivity, CoverageLineDetail, StoredApplication } from "@/lib/types"
+import { QuoteResponse, QuoteSubjectivity, CoverageLineDetail, StoredApplication, CoverageEndorsement } from "@/lib/types"
 import { getLocalQuote, saveWebhookResponse } from "@/lib/api/applications"
 import { useToast } from "@/components/ui/use-toast"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
-  DollarSign,
-  XCircle,
-  Clock,
-  RefreshCw,
   Loader2,
-  Shield,
-  FileText,
-  ExternalLink,
-  CheckCircle2,
+  RefreshCw,
   AlertTriangle,
+  CheckCircle2,
   ClipboardPaste,
   ChevronDown,
   ChevronUp,
-  Layers,
-  ScrollText,
-  Upload,
-  HelpCircle,
-  Check,
-  X,
+  FileText,
+  ExternalLink,
 } from "lucide-react"
 
 const COVERAGE_LABELS: Record<string, string> = {
-  do: "Directors & Officers (D&O)",
-  epli: "Employment Practices Liability (EPLI)",
+  do: "Directors & Officers Liability",
+  epli: "Employment Practices Liability",
   fid: "Fiduciary Liability",
   crm: "Crime",
   mpl: "Miscellaneous Professional Liability",
@@ -55,178 +42,67 @@ function formatCurrencyPremium(value: number | string): string {
   return num.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-interface QuoteViewProps {
-  application: StoredApplication
+function formatDate(dateStr: string | undefined | null): string {
+  if (!dateStr) return "—"
+  try {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+  } catch {
+    return dateStr
+  }
 }
 
-function CoverageLineCard({ lineKey, detail }: { lineKey: string; detail: CoverageLineDetail }) {
+function SublimitsSection({ coverageEntries }: { coverageEntries: [string, CoverageLineDetail][] }) {
   const [expanded, setExpanded] = useState(false)
-  const label = COVERAGE_LABELS[lineKey] || lineKey.toUpperCase()
+  const allSublimits = coverageEntries.flatMap(([, detail]) =>
+    (detail.limits_of_liability || [])
+      .sort((a, b) => a.order - b.order)
+      .map((lol) => ({
+        ...lol,
+        matchingRetention: detail.retentions?.find(r => r.coverage_key === lol.coverage_key),
+      }))
+  )
+  const count = allSublimits.length
 
   return (
-    <Card className="overflow-hidden">
-      <div
-        className="flex items-center justify-between p-5 cursor-pointer hover:bg-muted/30 transition-colors"
+    <div className="px-7 py-5 border-b border-qc-border">
+      <button
         onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between w-full text-left group"
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2 bg-counterpart-primary/10 rounded-lg shrink-0">
-            <Shield className="h-5 w-5 text-counterpart-primary" />
-          </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-sm">{label}</p>
-            <div className="flex gap-4 text-xs text-muted-foreground mt-0.5">
-              <span>Limit: {formatCurrency(detail.limit)}</span>
-              <span>Retention: {formatCurrency(detail.retention)}</span>
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted">Sublimits</p>
+          <span className="text-[10px] text-qc-muted/60 font-mono">{count}</span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <p className="text-lg font-bold text-green-700">{formatCurrencyPremium(detail.premium)}</p>
-          {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </div>
-      </div>
-
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+          : <ChevronDown className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+        }
+      </button>
       {expanded && (
-        <div className="border-t">
-          {/* Limits of Liability / Sublimits */}
-          {detail.limits_of_liability && detail.limits_of_liability.length > 0 && (
-            <div className="p-5 border-b">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Limits of Liability</p>
-              <div className="space-y-2">
-                {detail.limits_of_liability
-                  .sort((a, b) => a.order - b.order)
-                  .map((lol) => (
-                    <div key={lol.key} className="flex items-center justify-between py-1.5 px-3 rounded bg-muted/40 text-sm">
-                      <span className="text-muted-foreground">
-                        {lol.name}
-                        {lol.is_additional_limit && (
-                          <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0">Additional</Badge>
-                        )}
-                      </span>
-                      <span className="font-medium">{formatCurrency(lol.value)}</span>
-                    </div>
-                  ))}
-              </div>
+        <div className="mt-3">
+          <div className="grid grid-cols-[1fr_100px_80px] py-1.5 border-b border-qc-border font-mono text-[10px] uppercase tracking-[0.08em] text-qc-muted">
+            <span>Coverage Part</span>
+            <span className="text-right">Sublimit</span>
+            <span className="text-right">Retention</span>
+          </div>
+          {allSublimits.map((lol) => (
+            <div key={lol.key} className="grid grid-cols-[1fr_100px_80px] py-2.5 border-b border-qc-border last:border-b-0 text-[13px] text-qc-text items-center">
+              <span>{lol.name}{lol.is_additional_limit ? " ✦" : ""}</span>
+              <span className="text-right font-mono text-xs text-qc-teal font-medium">{formatCurrency(lol.value)}</span>
+              <span className="text-right font-mono text-xs text-qc-muted">
+                {lol.matchingRetention ? formatCurrency(lol.matchingRetention.value) : "—"}
+              </span>
             </div>
-          )}
-
-          {/* Retentions */}
-          {detail.retentions && detail.retentions.length > 0 && (
-            <div className="p-5 border-b">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Retentions</p>
-              <div className="space-y-2">
-                {detail.retentions
-                  .sort((a, b) => a.order - b.order)
-                  .map((ret, idx) => (
-                    <div key={ret.key || idx} className="flex items-center justify-between py-1.5 px-3 rounded bg-muted/40 text-sm">
-                      <span className="text-muted-foreground">{ret.name}</span>
-                      <span className="font-medium">{formatCurrency(ret.value)}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {/* Coverage-specific Endorsements */}
-          {detail.endorsements && detail.endorsements.length > 0 && (
-            <div className="p-5 border-b">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Endorsements</p>
-              <div className="space-y-1.5">
-                {detail.endorsements.map((end) => (
-                  <div key={end.id} className="flex items-start gap-2 py-1.5 px-3 rounded bg-muted/40 text-sm">
-                    <ScrollText className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                    <div className="min-w-0">
-                      <span className="text-muted-foreground">{end.name}</span>
-                      <span className="text-xs text-muted-foreground/70 ml-2">({end.id})</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Alternative Options */}
-          {detail.options && Object.keys(detail.options).length > 1 && (
-            <div className="p-5 border-t">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Available Options</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                {Object.entries(detail.options).map(([optKey, opt]) => (
-                  <div
-                    key={optKey}
-                    className={cn(
-                      "p-3 rounded-lg border text-sm",
-                      opt.limit === detail.limit && opt.retention === detail.retention
-                        ? "border-green-300 bg-green-50"
-                        : "border-border bg-muted/30"
-                    )}
-                  >
-                    <p className="text-xs text-muted-foreground mb-1">Option {optKey}</p>
-                    <p className="font-medium">{formatCurrency(opt.limit)} / {formatCurrency(opt.retention)}</p>
-                    <p className="text-green-700 font-semibold">{formatCurrencyPremium(opt.premium)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          ))}
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 
-function SubjectivityItem({ sub }: { sub: QuoteSubjectivity }) {
-  return (
-    <div className={cn(
-      "p-4 rounded-lg border",
-      sub.cleared ? "border-green-200 bg-green-50/50" : "border-yellow-200 bg-yellow-50/50"
-    )}>
-      <div className="flex items-start gap-3">
-        <div className={cn(
-          "p-1.5 rounded-full mt-0.5 shrink-0",
-          sub.cleared ? "bg-green-100" : "bg-yellow-100"
-        )}>
-          {sub.type === "upload" ? (
-            <Upload className={cn("h-3.5 w-3.5", sub.cleared ? "text-green-600" : "text-yellow-600")} />
-          ) : (
-            <HelpCircle className={cn("h-3.5 w-3.5", sub.cleared ? "text-green-600" : "text-yellow-600")} />
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <Badge variant="outline" className={cn(
-              "text-[10px] px-1.5 py-0",
-              sub.type === "upload"
-                ? "border-blue-200 text-blue-700 bg-blue-50"
-                : "border-purple-200 text-purple-700 bg-purple-50"
-            )}>
-              {sub.type === "upload" ? "File Upload" : "Question"}
-            </Badge>
-            {sub.required && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-200 text-red-700 bg-red-50">Required</Badge>
-            )}
-            <div className="ml-auto flex items-center gap-1">
-              {sub.cleared ? (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-300 bg-green-100 text-green-700">
-                  <Check className="h-2.5 w-2.5 mr-0.5" />
-                  Cleared
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-yellow-300 bg-yellow-100 text-yellow-700">
-                  <X className="h-2.5 w-2.5 mr-0.5" />
-                  Pending
-                </Badge>
-              )}
-            </div>
-          </div>
-          <p className="text-sm">{sub.question}</p>
-          {sub.details && (
-            <p className="text-xs text-muted-foreground mt-1">{sub.details}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+interface QuoteViewProps {
+  application: StoredApplication
 }
 
 export function QuoteView({ application }: QuoteViewProps) {
@@ -297,29 +173,25 @@ export function QuoteView({ application }: QuoteViewProps) {
     }
   }
 
+  // --- Loading state ---
   if (isLoading) {
     return (
-      <Card className="border-2 border-blue-200">
-        <CardContent className="py-12 flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-          <p className="text-sm text-muted-foreground">Loading quote details...</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 text-qc-teal animate-spin" />
+      </div>
     )
   }
 
+  // --- Error state ---
   if (error && !quoteData) {
     return (
-      <Card className="border-2 border-destructive/30">
-        <CardContent className="py-12 flex flex-col items-center gap-3">
-          <AlertTriangle className="h-8 w-8 text-destructive" />
-          <p className="text-sm text-destructive">{error}</p>
-          <Button variant="outline" onClick={handleRefresh}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Try Again
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="rounded-2xl bg-white shadow-lg p-12 text-center space-y-4">
+        <AlertTriangle className="h-10 w-10 text-red-500 mx-auto" />
+        <p className="text-sm text-red-600">{error}</p>
+        <button onClick={handleRefresh} className="inline-flex items-center gap-2 text-sm font-medium text-qc-teal hover:text-qc-teal-mid transition-colors">
+          <RefreshCw className="h-4 w-4" /> Try Again
+        </button>
+      </div>
     )
   }
 
@@ -329,375 +201,387 @@ export function QuoteView({ application }: QuoteViewProps) {
   const isPending = result === "PENDING" || result === "PROCESSING"
   const canBind = quoteData?.can_bind ?? quote?.can_bind
 
-  // Compute total premium from coverage object if total_premium not provided
-  const coverageEntries = quote?.coverage ? Object.entries(quote.coverage) : []
+  const coverageEntries = quote?.coverage
+    ? (Object.entries(quote.coverage) as [string, CoverageLineDetail][]).filter(([key]) => key !== "general_endorsements")
+    : []
   const computedTotalPremium = quote?.total_premium
     ? Number(quote.total_premium)
     : coverageEntries.reduce((sum, [, detail]) => sum + (detail.premium || 0), 0)
 
-  // Collect subjectivities from both possible locations
   const subjectivities: QuoteSubjectivity[] =
     quote?.subjectivities ?? quoteData?.subjectivities ?? []
 
+  const companyName = application.company_name || "—"
+  const dbaName = application.startApplicationData?.dba_name
+  const city = application.startApplicationData?.address_city
+  const state = application.startApplicationData?.address_state
+  const locationParts = [dbaName, [city, state].filter(Boolean).join(", ")].filter(Boolean).join(" · ")
+
+  // --- Pending / Review / Declined states ---
+  if (isPending || result === "REVIEW" || result === "DECLINED") {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-2xl bg-white shadow-lg overflow-hidden">
+          {/* Header */}
+          <div className="bg-qc-teal relative overflow-hidden px-7 pt-7 pb-6">
+            <div className="absolute -right-10 -bottom-16 w-44 h-44 rounded-full border-[40px] border-white/5" />
+            <div className="absolute right-5 -bottom-5 w-24 h-24 rounded-full border-[24px] border-white/[0.04]" />
+            <div className="relative z-10">
+              <h1 className="text-[26px] font-bold text-white leading-tight mb-1">{companyName}</h1>
+              {locationParts && <p className="text-[13px] text-white/50">{locationParts}</p>}
+            </div>
+          </div>
+
+          {/* Status band */}
+          <div className={cn(
+            "px-7 py-5 border-b",
+            result === "DECLINED" ? "bg-red-50 border-red-100" : "bg-amber-50 border-amber-100",
+          )}>
+            <div className="flex items-center gap-3">
+              {result === "DECLINED" ? (
+                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+              ) : (
+                <Loader2 className={cn("h-5 w-5 shrink-0", isPending ? "text-blue-500 animate-spin" : "text-amber-500")} />
+              )}
+              <div>
+                <p className={cn(
+                  "font-semibold text-sm",
+                  result === "DECLINED" ? "text-red-700" : isPending ? "text-blue-700" : "text-amber-700",
+                )}>
+                  {result === "DECLINED" ? "Application Declined" : isPending ? "Quote Processing" : "Under Review"}
+                </p>
+                <p className="text-xs text-qc-muted mt-0.5">{message}</p>
+              </div>
+              <button onClick={handleRefresh} className="ml-auto p-2 rounded-lg hover:bg-white/60 transition-colors" title="Refresh">
+                <RefreshCw className="h-4 w-4 text-qc-muted" />
+              </button>
+            </div>
+          </div>
+
+          {/* Paste webhook */}
+          {isPending && (
+            <div className="px-7 py-4 border-b border-qc-border">
+              <button
+                onClick={() => setPasteOpen(!pasteOpen)}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <ClipboardPaste className="h-4 w-4 text-qc-muted" />
+                  <span className="text-sm font-medium text-qc-text">Paste Webhook Response</span>
+                </div>
+                {pasteOpen ? <ChevronUp className="h-4 w-4 text-qc-muted" /> : <ChevronDown className="h-4 w-4 text-qc-muted" />}
+              </button>
+              {pasteOpen && (
+                <div className="mt-3 space-y-3">
+                  <Textarea
+                    placeholder='{"account_id": "...", "result": "QUOTED", "quote": { ... }}'
+                    className="font-mono text-xs min-h-[140px] border-qc-border"
+                    value={pasteValue}
+                    onChange={(e) => setPasteValue(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <Button onClick={handlePasteSubmit} disabled={!pasteValue.trim() || isPasting} className="flex-1 bg-qc-teal hover:bg-qc-teal-mid text-white">
+                      {isPasting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                      Apply Webhook Response
+                    </Button>
+                    <Button variant="outline" onClick={() => { setPasteValue(""); setPasteOpen(false) }} className="border-qc-border text-qc-muted">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // --- QUOTED state — the full card ---
+  if (result !== "QUOTED" || !quote) return null
+
   return (
     <div className="space-y-6">
-      {/* Quote Status Header */}
-      <Card className={cn(
-        "border-2",
-        result === "QUOTED" && "border-green-200",
-        result === "DECLINED" && "border-red-200",
-        result === "REVIEW" && "border-yellow-200",
-        result === "PENDING" && "border-muted",
-        result === "PROCESSING" && "border-blue-200",
-      )}>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {result === "QUOTED" && (
-                <>
-                  <div className="p-2.5 bg-green-100 rounded-full">
-                    <DollarSign className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl text-green-700">Quote Available</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">{message}</CardDescription>
-                  </div>
-                </>
-              )}
-              {result === "DECLINED" && (
-                <>
-                  <div className="p-2.5 bg-red-100 rounded-full">
-                    <XCircle className="h-6 w-6 text-red-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl text-red-700">Application Declined</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">{message}</CardDescription>
-                  </div>
-                </>
-              )}
-              {result === "REVIEW" && (
-                <>
-                  <div className="p-2.5 bg-yellow-100 rounded-full">
-                    <Clock className="h-6 w-6 text-yellow-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl text-yellow-700">Under Review</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {message || "Your application requires additional review by our underwriting team."}
-                    </CardDescription>
-                  </div>
-                </>
-              )}
-              {isPending && (
-                <>
-                  <div className="p-2.5 bg-blue-100 rounded-full">
-                    <Clock className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl text-blue-700">Quote Processing</CardTitle>
-                    <CardDescription className="text-sm mt-0.5">
-                      {message || "Your quote is still being processed."}
-                    </CardDescription>
-                  </div>
-                </>
-              )}
-            </div>
-            <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh quote">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-      </Card>
+      <div className="rounded-2xl bg-white shadow-[0_4px_32px_rgba(26,79,92,0.10),0_1px_4px_rgba(26,79,92,0.06)] overflow-hidden">
 
-      {/* Paste Webhook Response */}
-      {isPending && (
-        <Card className="border-dashed border-2 border-muted-foreground/25">
-          <CardHeader className="pb-3 cursor-pointer" onClick={() => setPasteOpen(!pasteOpen)}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ClipboardPaste className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base">Paste Webhook Response</CardTitle>
-              </div>
-              {pasteOpen ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              )}
-            </div>
-            {!pasteOpen && (
-              <CardDescription className="text-xs mt-1">
-                Paste the raw JSON from the Counterpart webhook to load your quote.
-              </CardDescription>
-            )}
-          </CardHeader>
-          {pasteOpen && (
-            <CardContent className="space-y-3">
-              <Textarea
-                placeholder='{"account_id": "...", "result": "QUOTED", "quote": { ... }}'
-                className="font-mono text-xs min-h-[160px]"
-                value={pasteValue}
-                onChange={(e) => setPasteValue(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <Button
-                  onClick={handlePasteSubmit}
-                  disabled={!pasteValue.trim() || isPasting}
-                  className="flex-1"
-                >
-                  {isPasting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                  )}
-                  Apply Webhook Response
-                </Button>
-                <Button variant="outline" onClick={() => { setPasteValue(""); setPasteOpen(false) }}>
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      )}
-
-      {/* Quote Details */}
-      {result === "QUOTED" && quote && (
-        <>
-          {/* Summary row */}
-          <div className={cn(
-            "grid gap-4",
-            quote.quote_number ? "grid-cols-1 md:grid-cols-4" : "grid-cols-1 md:grid-cols-3"
-          )}>
-            {computedTotalPremium > 0 && (
-              <Card className="bg-green-50 border-green-200">
-                <CardContent className="pt-6 pb-4 text-center">
-                  <p className="text-xs font-medium text-green-700 uppercase tracking-wider mb-1">Total Premium</p>
-                  <p className="text-lg font-bold text-green-800">{formatCurrencyPremium(computedTotalPremium)}</p>
-                </CardContent>
-              </Card>
-            )}
+        {/* ===== HEADER ===== */}
+        <div className="bg-qc-teal relative overflow-hidden px-7 pt-7 pb-6">
+          <div className="absolute -right-10 -bottom-16 w-44 h-44 rounded-full border-[40px] border-white/5" />
+          <div className="absolute right-5 -bottom-5 w-24 h-24 rounded-full border-[24px] border-white/[0.04]" />
+          <div className="relative z-10">
             {quote.quote_number && (
-              <Card>
-                <CardContent className="pt-6 pb-4 text-center">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Quote Number</p>
-                  <p className="text-sm font-semibold">{quote.quote_number}</p>
-                </CardContent>
-              </Card>
+              <p className="font-mono text-xs tracking-wide text-white/60 mb-2">
+                Quote <span className="text-white/90 font-medium">{quote.quote_number}</span>
+              </p>
             )}
-            {quote.quote_expiration_date && (
-              <Card>
-                <CardContent className="pt-6 pb-4 text-center">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Quote Expires</p>
-                  <p className="text-sm font-semibold">{quote.quote_expiration_date}</p>
-                </CardContent>
-              </Card>
-            )}
-            <Card>
-              <CardContent className="pt-6 pb-4 text-center">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Bind Eligible</p>
-                <Badge variant="outline" className={cn(
-                  "text-xs px-2 py-0.5",
-                  canBind
-                    ? "border-green-300 bg-green-50 text-green-700"
-                    : "border-yellow-300 bg-yellow-50 text-yellow-700"
-                )}>
-                  {canBind ? "Ready to Bind" : "Subjectivities Required"}
-                </Badge>
-              </CardContent>
-            </Card>
+            <h1 className="text-[26px] font-bold text-white leading-tight">{companyName}</h1>
+            {locationParts && <p className="text-[13px] text-white/50 mt-1">{locationParts}</p>}
           </div>
+        </div>
 
-          {/* Coverage Lines (new detailed format) */}
-          {coverageEntries.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Layers className="h-5 w-5 text-muted-foreground" />
-                <h3 className="text-lg font-semibold">Coverage Lines</h3>
-              </div>
-              {coverageEntries.map(([lineKey, detail]) => (
-                <CoverageLineCard key={lineKey} lineKey={lineKey} detail={detail} />
-              ))}
+        {/* ===== PREMIUM BAND ===== */}
+        <div className="bg-qc-teal-pale border-b border-qc-border px-7 py-5 flex items-center justify-between">
+          <div>
+            <label className="font-mono text-[10px] uppercase tracking-[0.1em] text-qc-muted block mb-1">Annual Premium</label>
+            <div className="flex items-baseline">
+              <span className="font-semibold text-[40px] text-qc-teal leading-none">{formatCurrency(computedTotalPremium)}</span>
+              <span className="text-sm text-qc-muted ml-1">/ yr</span>
             </div>
-          )}
+          </div>
+          <div className="text-right">
+            {quote.quote_expiration_date && (
+              <>
+                <label className="font-mono text-[10px] uppercase tracking-[0.1em] text-qc-muted block mb-1">Quote Expires</label>
+                <span className="text-sm text-qc-text font-medium">{formatDate(quote.quote_expiration_date)}</span>
+              </>
+            )}
+          </div>
+        </div>
 
-          {/* Fallback: old coverages array format */}
-          {!coverageEntries.length && quote.coverages && quote.coverages.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-lg">Coverage Breakdown</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {quote.coverages.map((cov, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                      <div className="space-y-1">
-                        <p className="font-semibold text-sm">{COVERAGE_LABELS[cov.coverage_line] || cov.coverage_line.toUpperCase()}</p>
-                        <div className="flex gap-4 text-xs text-muted-foreground">
-                          <span>Limit: {formatCurrency(cov.limit)}</span>
-                          <span>Retention: {formatCurrency(cov.retention)}</span>
-                          {cov.selected_option !== undefined && (
-                            <span>Option: {cov.selected_option}</span>
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-lg font-bold text-green-700">{formatCurrencyPremium(cov.premium)}</p>
+        {/* ===== COVERAGE LIMITS ===== */}
+        {coverageEntries.length > 0 && (
+          <div className="px-7 py-5 border-b border-qc-border">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted mb-3.5">Coverage Limits</p>
+            <div className="space-y-2.5">
+              {coverageEntries.map(([lineKey, detail]) => {
+                const label = COVERAGE_LABELS[lineKey] || lineKey.toUpperCase()
+                const hasAdditionalLimit = detail.limits_of_liability?.some(l => l.is_additional_limit)
+                return (
+                  <div key={lineKey} className="bg-qc-teal-pale border border-qc-border rounded-[10px] px-[18px] py-4">
+                    <div className="flex justify-between items-center mb-0.5">
+                      <span className="text-sm font-semibold text-qc-teal">{label}</span>
+                      <span className="font-semibold text-xl text-qc-teal">{formatCurrency(detail.limit)}</span>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    <p className="text-[11px] text-qc-muted">
+                      Policy Aggregate · {formatCurrency(detail.retention)} Retention
+                      {hasAdditionalLimit && " · Includes additional limits"}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
-          {/* Subjectivities */}
-          {subjectivities.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                  <CardTitle className="text-lg">Subjectivities</CardTitle>
-                  <Badge variant="outline" className="ml-auto text-xs">
-                    {subjectivities.filter((s) => s.cleared).length}/{subjectivities.length} Cleared
-                  </Badge>
-                </div>
-                <CardDescription>Requirements that must be fulfilled before binding</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {subjectivities.map((sub, idx) => (
-                    <SubjectivityItem key={sub.key || idx} sub={sub} />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+        {/* ===== SUBLIMITS TABLE (collapsible) ===== */}
+        {coverageEntries.some(([, d]) => d.limits_of_liability && d.limits_of_liability.length > 0) && (
+          <SublimitsSection coverageEntries={coverageEntries} />
+        )}
 
-          {/* Carrier & Quota Share Details */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-lg">Quote Details</CardTitle>
+        {/* ===== RETENTIONS (if no sublimits, show standalone) ===== */}
+        {coverageEntries.some(([, d]) => d.retentions && d.retentions.length > 0) &&
+         !coverageEntries.some(([, d]) => d.limits_of_liability && d.limits_of_liability.length > 0) && (
+          <div className="px-7 py-5 border-b border-qc-border">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted mb-3.5">Retentions</p>
+            {coverageEntries.flatMap(([, detail]) =>
+              (detail.retentions || [])
+                .sort((a, b) => a.order - b.order)
+                .map((ret, idx) => (
+                  <div key={ret.key || idx} className="flex justify-between items-center py-2 border-b border-qc-border last:border-b-0">
+                    <span className="text-xs text-qc-muted">{ret.name}</span>
+                    <span className="font-mono text-xs text-qc-text font-medium">{formatCurrency(ret.value)}</span>
+                  </div>
+                ))
+            )}
+          </div>
+        )}
+
+        {/* ===== SUBJECTIVITIES ===== */}
+        {subjectivities.length > 0 && (
+          <div className="px-7 py-5 border-b border-qc-border">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted mb-3.5">Outstanding Subjectivities</p>
+            {subjectivities.filter(s => !s.cleared).map((sub, idx) => (
+              <div key={sub.key || idx} className="flex items-start gap-2.5 py-2 border-b border-qc-border last:border-b-0 text-[13px] text-qc-text">
+                <div className="w-1.5 h-1.5 rounded-full bg-qc-gold shrink-0 mt-[7px]" />
+                <div>
+                  <span>{sub.question}</span>
+                  {sub.details && <p className="text-xs text-qc-muted mt-0.5">{sub.details}</p>}
+                </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {quote.carrier_name && (
-                <div className="flex justify-between text-sm py-2 border-b border-border/50">
-                  <span className="text-muted-foreground">Carrier</span>
-                  <span className="font-medium text-right max-w-[60%]">{quote.carrier_name}</span>
-                </div>
-              )}
+            ))}
+            {subjectivities.filter(s => s.cleared).length > 0 && (
+              <div className="mt-3 pt-3 border-t border-qc-border">
+                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-qc-green mb-2">Cleared</p>
+                {subjectivities.filter(s => s.cleared).map((sub, idx) => (
+                  <div key={sub.key || idx} className="flex items-start gap-2.5 py-1.5 text-[13px] text-qc-muted line-through">
+                    <div className="w-1.5 h-1.5 rounded-full bg-qc-green shrink-0 mt-[7px]" />
+                    <span>{sub.question}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {quote.subjectivities_url && subjectivities.some(s => !s.cleared) && (
+              <a
+                href={quote.subjectivities_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg text-[13px] font-medium border border-qc-gold/40 bg-qc-gold/5 text-qc-amber hover:bg-qc-gold/10 hover:border-qc-gold/60 transition-all"
+              >
+                Complete Subjectivities
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* ===== CARRIERS / QUOTA SHARE ===== */}
+        {quote.quota_share && quote.quota_share.length > 0 && (
+          <div className="px-7 py-5 border-b border-qc-border">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted mb-3.5">Underwritten By (Quota Share)</p>
+            <div className="grid grid-cols-3 gap-2">
+              {quote.quota_share.map((qs, i) => {
+                const shareAmount = computedTotalPremium * (qs.percent / 100)
+                return (
+                  <div key={i} className="bg-qc-teal-pale border border-qc-border rounded-lg px-3 py-3">
+                    <p className="text-xs font-medium text-qc-text mb-1.5 leading-snug">{qs.name}</p>
+                    <p className="font-mono text-[11px] text-qc-muted">
+                      <span className="text-qc-teal font-medium">{qs.percent}%</span> · {formatCurrencyPremium(shareAmount)}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Single carrier (no quota share) */}
+        {(!quote.quota_share || quote.quota_share.length === 0) && quote.carrier_name && (
+          <div className="px-7 py-5 border-b border-qc-border">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted mb-3.5">Underwritten By</p>
+            <div className="bg-qc-teal-pale border border-qc-border rounded-lg px-4 py-3">
+              <p className="text-sm font-medium text-qc-text">{quote.carrier_name}</p>
               {quote.carrier_type && (
-                <div className="flex justify-between text-sm py-2 border-b border-border/50">
-                  <span className="text-muted-foreground">Carrier Type</span>
-                  <Badge variant="outline" className={cn(
-                    "text-xs",
-                    quote.carrier_type === "SURPLUS"
-                      ? "border-orange-200 bg-orange-50 text-orange-700"
-                      : "border-blue-200 bg-blue-50 text-blue-700"
-                  )}>
-                    {quote.carrier_type}
-                  </Badge>
+                <p className="font-mono text-[11px] text-qc-muted mt-1">{quote.carrier_type}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===== ENDORSEMENTS ===== */}
+        {(() => {
+          const allEndorsements: CoverageEndorsement[] = [
+            ...(quote.general_endorsements || []),
+            ...coverageEntries.flatMap(([, d]) => d.endorsements || []),
+          ]
+          if (allEndorsements.length === 0) return null
+          return (
+            <div className="px-7 py-5 border-b border-qc-border">
+              <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted mb-3.5">Endorsements</p>
+              <div className="space-y-1">
+                {allEndorsements.map((end) => (
+                  <div key={end.id} className="flex items-start gap-2 text-[13px] text-qc-text leading-relaxed">
+                    <span className="text-qc-border shrink-0">—</span>
+                    <span>{end.name} <span className="text-qc-muted text-xs">({end.id})</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ===== CONDITIONS ===== */}
+        {quote.carrier_type && (
+          <div className="px-7 py-5 border-b border-qc-border">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted mb-3.5">Conditions</p>
+            <div className="space-y-1">
+              <div className="flex items-start gap-2 text-xs text-qc-muted leading-relaxed">
+                <span className="text-qc-border shrink-0">—</span>
+                Claims-made policy form · {quote.carrier_type === "SURPLUS" ? "Surplus lines (non-admitted)" : quote.carrier_type}
+              </div>
+              <div className="flex items-start gap-2 text-xs text-qc-muted leading-relaxed">
+                <span className="text-qc-border shrink-0">—</span>
+                Subject to no material change in risk prior to binding
+              </div>
+              {!canBind && (
+                <div className="flex items-start gap-2 text-xs text-qc-muted leading-relaxed">
+                  <span className="text-qc-border shrink-0">—</span>
+                  Quote may be modified upon review of subjectivities
                 </div>
               )}
-              {quote.quota_share && quote.quota_share.length > 0 && (
-                <div className="py-2 border-b border-border/50">
-                  <p className="text-sm text-muted-foreground mb-2">Quota Share</p>
-                  <div className="space-y-1.5">
-                    {quote.quota_share.map((qs, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm px-3 py-2 bg-muted/40 rounded">
-                        <span>{qs.name}</span>
-                        <span className="font-semibold">{qs.percent}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+            </div>
+          </div>
+        )}
 
-              {/* General Endorsements */}
-              {quote.general_endorsements && quote.general_endorsements.length > 0 && (
-                <div className="py-2 border-b border-border/50">
-                  <p className="text-sm text-muted-foreground mb-2">General Endorsements</p>
-                  <div className="space-y-1.5">
-                    {quote.general_endorsements.map((end) => (
-                      <div key={end.id} className="flex items-start gap-2 text-sm px-3 py-2 bg-muted/40 rounded">
-                        <ScrollText className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <span>{end.name}</span>
-                          <span className="text-xs text-muted-foreground/70 ml-2">({end.id})</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+        {/* ===== EXPIRY WARNING ===== */}
+        {quote.quote_expiration_date && (
+          <div className="bg-[#fef8ee] border-t border-[#f0ddb4] px-7 py-3 flex items-center gap-2 text-xs text-qc-amber">
+            <span className="text-[13px]">⏳</span>
+            Quote expires <strong className="mx-0.5">{formatDate(quote.quote_expiration_date)}</strong>
+          </div>
+        )}
 
-              {/* Documents */}
-              {quote.documents && Object.values(quote.documents).some(Boolean) && (
-                <>
-                  <Separator className="my-2" />
-                  <div>
-                    <p className="text-sm font-semibold mb-2">Documents</p>
-                    <div className="flex flex-wrap gap-2">
-                      {quote.documents.quote_bundle && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={quote.documents.quote_bundle} target="_blank" rel="noopener noreferrer">
-                            <FileText className="mr-1.5 h-3.5 w-3.5" />
-                            Quote Bundle
-                            <ExternalLink className="ml-1.5 h-3 w-3" />
-                          </a>
-                        </Button>
-                      )}
-                      {quote.documents.sample_policy_forms && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={quote.documents.sample_policy_forms} target="_blank" rel="noopener noreferrer">
-                            <FileText className="mr-1.5 h-3.5 w-3.5" />
-                            Sample Policy
-                            <ExternalLink className="ml-1.5 h-3 w-3" />
-                          </a>
-                        </Button>
-                      )}
-                      {quote.documents.endorsements && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={quote.documents.endorsements} target="_blank" rel="noopener noreferrer">
-                            <FileText className="mr-1.5 h-3.5 w-3.5" />
-                            Endorsements
-                            <ExternalLink className="ml-1.5 h-3 w-3" />
-                          </a>
-                        </Button>
-                      )}
-                      {quote.documents.application && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={quote.documents.application} target="_blank" rel="noopener noreferrer">
-                            <FileText className="mr-1.5 h-3.5 w-3.5" />
-                            Application
-                            <ExternalLink className="ml-1.5 h-3 w-3" />
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
+        {/* ===== ACTIONS ===== */}
+        <div className="px-7 py-5 flex gap-2.5">
+          {quote.documents?.quote_bundle && (
+            <a
+              href={quote.documents.quote_bundle}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-3 rounded-lg text-[13px] font-medium text-center border border-qc-border text-qc-muted hover:border-qc-teal-mid hover:text-qc-teal transition-all cursor-pointer"
+            >
+              Download PDF
+            </a>
+          )}
+          {quote.subjectivities_url && (
+            <a
+              href={quote.subjectivities_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-3 rounded-lg text-[13px] font-medium text-center border border-qc-border text-qc-muted hover:border-qc-teal-mid hover:text-qc-teal transition-all cursor-pointer"
+            >
+              Complete Subjectivities
+            </a>
+          )}
+          {quote.counterpart_account_page_url && (
+            <a
+              href={quote.counterpart_account_page_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-3 rounded-lg text-[13px] font-semibold text-center bg-qc-teal text-white hover:bg-qc-teal-mid transition-all cursor-pointer"
+            >
+              View on Counterpart →
+            </a>
+          )}
+          <button
+            onClick={handleRefresh}
+            className="py-3 px-4 rounded-lg text-[13px] font-medium border border-qc-border text-qc-muted hover:border-qc-teal-mid hover:text-qc-teal transition-all"
+            title="Refresh quote data"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+        </div>
 
-              {/* Counterpart account page link */}
-              {quote.counterpart_account_page_url && (
-                <>
-                  <Separator className="my-2" />
-                  <Button variant="outline" className="w-full" asChild>
-                    <a href={quote.counterpart_account_page_url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      View on Counterpart
-                    </a>
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+        {/* ===== DOCUMENTS ROW ===== */}
+        {quote.documents && Object.values(quote.documents).some(Boolean) && (
+          <div className="px-7 pb-5 flex flex-wrap gap-2">
+            {quote.documents.sample_policy_forms && (
+              <a href={quote.documents.sample_policy_forms} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-qc-teal hover:text-qc-teal-mid transition-colors px-2.5 py-1.5 rounded border border-qc-border bg-qc-teal-pale">
+                <FileText className="h-3 w-3" /> Sample Policy <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            )}
+            {quote.documents.endorsements && (
+              <a href={quote.documents.endorsements} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-qc-teal hover:text-qc-teal-mid transition-colors px-2.5 py-1.5 rounded border border-qc-border bg-qc-teal-pale">
+                <FileText className="h-3 w-3" /> Endorsements <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            )}
+            {quote.documents.application && (
+              <a href={quote.documents.application} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-qc-teal hover:text-qc-teal-mid transition-colors px-2.5 py-1.5 rounded border border-qc-border bg-qc-teal-pale">
+                <FileText className="h-3 w-3" /> Application <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* ===== SURPLUS NOTICE ===== */}
+        {quote.carrier_type === "SURPLUS" && (
+          <div className="px-7 py-3 border-t border-qc-border text-[10.5px] text-[#aabbbf] leading-relaxed">
+            <strong className="text-qc-muted">Surplus Lines Notice:</strong> This policy is issued pursuant to surplus lines statutes. The insurer is not licensed in your state and does not participate in state guaranty funds. In the event of insolvency, losses will not be covered by a state guaranty fund.
+          </div>
+        )}
+      </div>
     </div>
   )
 }
