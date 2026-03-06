@@ -32,7 +32,7 @@ const statusColors: Record<ApplicationStatus, { bg: string; text: string }> = {
   submitted: { bg: "bg-secondary/50", text: "text-primary" },
   quoted: { bg: "bg-counterpart-green-light/30", text: "text-counterpart-green-dark" },
   declined: { bg: "bg-counterpart-red-light/50", text: "text-counterpart-red-dark" },
-  bound: { bg: "bg-counterpart-green-light/50", text: "text-counterpart-green-dark" },
+  bound: { bg: "bg-counterpart-secondary/50", text: "text-counterpart-primary" },
 }
 
 const statusLabels: Record<ApplicationStatus, string> = {
