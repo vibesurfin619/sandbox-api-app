@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { QuoteResponse, QuoteSubjectivity, CoverageLineDetail, StoredApplication, CoverageEndorsement } from "@/lib/types"
-import { getLocalQuote, saveWebhookResponse } from "@/lib/api/applications"
+import { getLocalQuote, saveWebhookResponse, updateApplicationStatus } from "@/lib/api/applications"
+import { bindPolicy } from "@/lib/api/counterpart"
+import { useApiCallContext } from "@/context/ApiCallContext"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
@@ -17,6 +20,9 @@ import {
   ChevronUp,
   FileText,
   ExternalLink,
+  Shield,
+  Calendar,
+  Pencil,
 } from "lucide-react"
 
 const COVERAGE_LABELS: Record<string, string> = {
@@ -107,12 +113,29 @@ interface QuoteViewProps {
 
 export function QuoteView({ application }: QuoteViewProps) {
   const { toast } = useToast()
+  const { addApiCall } = useApiCallContext()
   const [quoteData, setQuoteData] = useState<QuoteResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteValue, setPasteValue] = useState("")
   const [isPasting, setIsPasting] = useState(false)
+
+  // Bind policy state
+  const [bindOpen, setBindOpen] = useState(false)
+  const [isBinding, setIsBinding] = useState(false)
+  const [isBound, setIsBound] = useState(application.status === "bound")
+  const [effectiveDate, setEffectiveDate] = useState("")
+  const [hrContactName, setHrContactName] = useState("")
+  const [hrContactEmail, setHrContactEmail] = useState("")
+  const [hrContactTitle, setHrContactTitle] = useState("")
+  const [hrContactPhone, setHrContactPhone] = useState("")
+
+  // Edit quote payload state
+  const [editPayloadOpen, setEditPayloadOpen] = useState(false)
+  const [editPayloadValue, setEditPayloadValue] = useState("")
+  const [isSavingPayload, setIsSavingPayload] = useState(false)
+  const [payloadError, setPayloadError] = useState<string | null>(null)
 
   const fetchQuote = async () => {
     setIsLoading(true)
@@ -170,6 +193,80 @@ export function QuoteView({ application }: QuoteViewProps) {
       })
     } finally {
       setIsPasting(false)
+    }
+  }
+
+  const handleOpenEditPayload = () => {
+    if (!editPayloadOpen && quoteData) {
+      setEditPayloadValue(JSON.stringify(quoteData, null, 2))
+      setPayloadError(null)
+    }
+    setEditPayloadOpen(!editPayloadOpen)
+  }
+
+  const handleSavePayload = async () => {
+    const trimmed = editPayloadValue.trim()
+    if (!trimmed) return
+
+    let parsed: any
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      setPayloadError("Invalid JSON. Please fix syntax errors and try again.")
+      return
+    }
+
+    if (!parsed.result) {
+      setPayloadError("Missing required 'result' field in the payload.")
+      return
+    }
+
+    setPayloadError(null)
+    setIsSavingPayload(true)
+    try {
+      await saveWebhookResponse(application.account_id, parsed)
+      setQuoteData(parsed as QuoteResponse)
+      setEditPayloadOpen(false)
+      toast({ title: "Quote Payload Updated", description: "The stored quote data has been saved." })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to save quote payload",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingPayload(false)
+    }
+  }
+
+  const handleBindPolicy = async () => {
+    if (!effectiveDate) {
+      toast({ title: "Missing Date", description: "Please select an effective date for the policy.", variant: "destructive" })
+      return
+    }
+
+    setIsBinding(true)
+    try {
+      const bindData: any = { effective_date: effectiveDate }
+      if (hrContactName) bindData.hr_contact_name = hrContactName
+      if (hrContactEmail) bindData.hr_contact_email = hrContactEmail
+      if (hrContactTitle) bindData.hr_contact_title = hrContactTitle
+      if (hrContactPhone) bindData.hr_contact_phone = hrContactPhone
+
+      await bindPolicy(application.account_id, bindData, addApiCall)
+      await updateApplicationStatus(application.account_id, "bound")
+
+      setIsBound(true)
+      setBindOpen(false)
+      toast({ title: "Policy Bound", description: "The policy has been successfully bound. You will receive policy documents via webhook." })
+    } catch (err) {
+      toast({
+        title: "Bind Failed",
+        description: err instanceof Error ? err.message : "Failed to bind policy. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBinding(false)
     }
   }
 
@@ -285,6 +382,63 @@ export function QuoteView({ application }: QuoteViewProps) {
                       Apply Webhook Response
                     </Button>
                     <Button variant="outline" onClick={() => { setPasteValue(""); setPasteOpen(false) }} className="border-qc-border text-qc-muted">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Edit stored payload */}
+          {!isPending && quoteData && (
+            <div className="px-7 py-4 border-b border-qc-border">
+              <button
+                onClick={handleOpenEditPayload}
+                className="flex items-center justify-between w-full text-left group"
+              >
+                <div className="flex items-center gap-2">
+                  <Pencil className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+                  <span className="text-sm font-medium text-qc-text group-hover:text-qc-teal transition-colors">Edit Quote Payload</span>
+                </div>
+                {editPayloadOpen
+                  ? <ChevronUp className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+                  : <ChevronDown className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+                }
+              </button>
+              {editPayloadOpen && (
+                <div className="mt-3 space-y-3">
+                  <p className="text-[11px] text-qc-muted">
+                    Edit the raw quote JSON stored locally. Changes are saved to the database and reflected immediately.
+                  </p>
+                  <Textarea
+                    className="font-mono text-xs min-h-[300px] border-qc-border bg-qc-teal-pale/30"
+                    value={editPayloadValue}
+                    onChange={(e) => {
+                      setEditPayloadValue(e.target.value)
+                      setPayloadError(null)
+                    }}
+                  />
+                  {payloadError && (
+                    <p className="text-xs text-red-500 flex items-center gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      {payloadError}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSavePayload}
+                      disabled={!editPayloadValue.trim() || isSavingPayload}
+                      className="flex-1 bg-qc-teal hover:bg-qc-teal-mid text-white"
+                    >
+                      {isSavingPayload ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                      Save Payload
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => { setEditPayloadOpen(false); setPayloadError(null) }}
+                      className="border-qc-border text-qc-muted"
+                    >
                       Cancel
                     </Button>
                   </div>
@@ -510,6 +664,116 @@ export function QuoteView({ application }: QuoteViewProps) {
           </div>
         )}
 
+        {/* ===== BIND POLICY ===== */}
+        {canBind && !isBound && (
+          <div className="px-7 py-5 border-b border-qc-border">
+            {!bindOpen ? (
+              <button
+                onClick={() => setBindOpen(true)}
+                className="w-full py-4 rounded-xl text-[15px] font-semibold text-center bg-qc-teal text-white hover:bg-qc-teal-mid transition-all cursor-pointer inline-flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg"
+              >
+                <Shield className="h-5 w-5" />
+                Bind Policy
+              </button>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Shield className="h-4 w-4 text-qc-teal" />
+                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted">Bind Policy</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-qc-text mb-1.5">
+                    Effective Date <span className="text-red-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-qc-muted pointer-events-none" />
+                    <Input
+                      type="date"
+                      value={effectiveDate}
+                      onChange={(e) => setEffectiveDate(e.target.value)}
+                      className="pl-10 border-qc-border text-sm"
+                      required
+                    />
+                  </div>
+                  <p className="text-[11px] text-qc-muted mt-1">Date coverage begins (YYYY-MM-DD)</p>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <p className="text-xs font-medium text-qc-muted">HR Contact (optional)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      type="text"
+                      placeholder="Contact name"
+                      value={hrContactName}
+                      onChange={(e) => setHrContactName(e.target.value)}
+                      className="border-qc-border text-sm"
+                    />
+                    <Input
+                      type="email"
+                      placeholder="Email address"
+                      value={hrContactEmail}
+                      onChange={(e) => setHrContactEmail(e.target.value)}
+                      className="border-qc-border text-sm"
+                    />
+                    <Input
+                      type="text"
+                      placeholder="Job title"
+                      value={hrContactTitle}
+                      onChange={(e) => setHrContactTitle(e.target.value)}
+                      className="border-qc-border text-sm"
+                    />
+                    <Input
+                      type="tel"
+                      placeholder="Phone number"
+                      value={hrContactPhone}
+                      onChange={(e) => setHrContactPhone(e.target.value)}
+                      className="border-qc-border text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    onClick={handleBindPolicy}
+                    disabled={!effectiveDate || isBinding}
+                    className="flex-1 bg-qc-teal hover:bg-qc-teal-mid text-white font-semibold shadow-md"
+                  >
+                    {isBinding ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Shield className="mr-2 h-4 w-4" />
+                    )}
+                    {isBinding ? "Binding..." : "Confirm & Bind Policy"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setBindOpen(false)}
+                    disabled={isBinding}
+                    className="border-qc-border text-qc-muted"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isBound && (
+          <div className="px-7 py-5 border-b border-qc-border bg-emerald-50/60">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-emerald-100">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-emerald-700">Policy Bound</p>
+                <p className="text-xs text-emerald-600/70 mt-0.5">Policy documents will be delivered via webhook to your policy-results endpoint.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ===== ACTIONS ===== */}
         <div className="px-7 py-5 flex flex-wrap gap-2.5">
           {quote.documents?.sample_policy_forms && (
@@ -565,6 +829,63 @@ export function QuoteView({ application }: QuoteViewProps) {
         {quote.carrier_type === "SURPLUS" && (
           <div className="px-7 py-3 border-t border-qc-border text-[10.5px] text-[#aabbbf] leading-relaxed">
             <strong className="text-qc-muted">Surplus Lines Notice:</strong> This policy is issued pursuant to surplus lines statutes. The insurer is not licensed in your state and does not participate in state guaranty funds. In the event of insolvency, losses will not be covered by a state guaranty fund.
+          </div>
+        )}
+
+        {/* ===== EDIT QUOTE PAYLOAD ===== */}
+        {!isBound && (
+          <div className="px-7 py-5 border-t border-qc-border">
+            <button
+              onClick={handleOpenEditPayload}
+              className="flex items-center justify-between w-full text-left group"
+            >
+              <div className="flex items-center gap-2">
+                <Pencil className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+                <span className="text-sm font-medium text-qc-text group-hover:text-qc-teal transition-colors">Edit Quote Payload</span>
+              </div>
+              {editPayloadOpen
+                ? <ChevronUp className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+                : <ChevronDown className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+              }
+            </button>
+            {editPayloadOpen && (
+              <div className="mt-3 space-y-3">
+                <p className="text-[11px] text-qc-muted">
+                  Edit the raw quote JSON stored locally. Changes are saved to the database and reflected immediately.
+                </p>
+                <Textarea
+                  className="font-mono text-xs min-h-[300px] border-qc-border bg-qc-teal-pale/30"
+                  value={editPayloadValue}
+                  onChange={(e) => {
+                    setEditPayloadValue(e.target.value)
+                    setPayloadError(null)
+                  }}
+                />
+                {payloadError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    {payloadError}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSavePayload}
+                    disabled={!editPayloadValue.trim() || isSavingPayload}
+                    className="flex-1 bg-qc-teal hover:bg-qc-teal-mid text-white"
+                  >
+                    {isSavingPayload ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                    Save Payload
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => { setEditPayloadOpen(false); setPayloadError(null) }}
+                    className="border-qc-border text-qc-muted"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -5,6 +5,8 @@ import {
   SubmitApplicationRequest,
   SubmitApplicationResponse,
   QuoteResponse,
+  BindPolicyRequest,
+  BindPolicyResponse,
   ApiError,
 } from "../types";
 import { ApiCall } from "@/context/ApiCallContext";
@@ -164,6 +166,21 @@ export async function getQuote(
     `/account/${accountId}`,
     {
       method: "GET",
+      addApiCall,
+    }
+  );
+}
+
+export async function bindPolicy(
+  accountId: string,
+  data: BindPolicyRequest,
+  addApiCall?: (call: Omit<ApiCall, "id" | "timestamp">) => void
+): Promise<BindPolicyResponse> {
+  return makeApiCall<BindPolicyResponse>(
+    `/policy/${accountId}/bind`,
+    {
+      method: "POST",
+      body: data,
       addApiCall,
     }
   );

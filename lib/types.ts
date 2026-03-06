@@ -207,6 +207,19 @@ export interface IssueQuoteResponse {
   result?: "QUOTED";
 }
 
+export interface BindPolicyRequest {
+  effective_date: string; // YYYY-MM-DD
+  hr_contact_name?: string;
+  hr_contact_email?: string;
+  hr_contact_title?: string;
+  hr_contact_phone?: string;
+}
+
+export interface BindPolicyResponse {
+  account_id: string;
+  status: "BOUND";
+}
+
 export interface ApiError {
   error: string | string[];
   code?: string;
