@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { QuoteResponse, QuoteSubjectivity, CoverageLineDetail, StoredApplication, CoverageEndorsement } from "@/lib/types"
 import { getLocalQuote, saveWebhookResponse, updateApplicationStatus } from "@/lib/api/applications"
-import { bindPolicy } from "@/lib/api/counterpart"
+import { bindPolicy, getQuote } from "@/lib/api/counterpart"
 import { useApiCallContext } from "@/context/ApiCallContext"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
@@ -159,6 +159,14 @@ export function QuoteView({ application }: QuoteViewProps) {
   const handleRefresh = async () => {
     await fetchQuote()
     toast({ title: "Quote Refreshed", description: "Quote data has been updated." })
+  }
+
+  const handleGetAccount = async () => {
+    try {
+      await getQuote(application.account_id, addApiCall)
+    } catch {
+      // ignore — this is just to trigger the API call
+    }
   }
 
   const handlePasteSubmit = async () => {
@@ -817,9 +825,9 @@ export function QuoteView({ application }: QuoteViewProps) {
             </a>
           )}
           <button
-            onClick={handleRefresh}
+            onClick={handleGetAccount}
             className="py-3 px-4 rounded-lg text-[13px] font-medium border border-qc-border text-qc-text hover:border-qc-teal-mid hover:text-qc-teal transition-all"
-            title="Refresh quote data"
+            title="Get Account"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
