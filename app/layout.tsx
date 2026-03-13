@@ -45,6 +45,18 @@ export default function RootLayout({
                       Dashboard
                     </Link>
                     <Link 
+                      href="/shop-coverage" 
+                      className="text-sm font-medium text-counterpart-primary hover:opacity-70 transition-opacity"
+                    >
+                      Shop Coverage
+                    </Link>
+                    <Link 
+                      href="/quotes" 
+                      className="text-sm font-medium text-counterpart-primary hover:opacity-70 transition-opacity"
+                    >
+                      Get Quotes
+                    </Link>
+                    <Link 
                       href="/applications" 
                       className="text-sm font-medium text-counterpart-primary hover:opacity-70 transition-opacity"
                     >

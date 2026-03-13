@@ -1,4 +1,4 @@
-import { StoredApplication, ApplicationStatus, QuoteResponse } from "../types";
+import { StoredApplication, ApplicationStatus, QuoteResponse, PolicyWebhookResponse } from "../types";
 
 export async function getAllApplications(): Promise<StoredApplication[]> {
   const res = await fetch("/api/applications");
@@ -78,5 +78,30 @@ export async function saveWebhookResponse(
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || "Failed to save webhook response");
+  }
+}
+
+export async function getLocalPolicy(
+  accountId: string
+): Promise<PolicyWebhookResponse | null> {
+  const res = await fetch(`/api/applications/${accountId}/policy`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (data.status === "PENDING" && !data.policy) return null;
+  return data as PolicyWebhookResponse;
+}
+
+export async function savePolicyWebhookResponse(
+  accountId: string,
+  data: object
+): Promise<void> {
+  const res = await fetch(`/api/applications/${accountId}/policy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Failed to save policy webhook response");
   }
 }

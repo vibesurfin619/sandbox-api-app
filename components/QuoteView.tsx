@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { QuoteResponse, QuoteSubjectivity, CoverageLineDetail, StoredApplication, CoverageEndorsement } from "@/lib/types"
-import { getLocalQuote, saveWebhookResponse, updateApplicationStatus } from "@/lib/api/applications"
+import { QuoteResponse, QuoteSubjectivity, CoverageLineDetail, StoredApplication, CoverageEndorsement, PolicyWebhookResponse } from "@/lib/types"
+import { getLocalQuote, saveWebhookResponse, updateApplicationStatus, getLocalPolicy, savePolicyWebhookResponse } from "@/lib/api/applications"
 import { bindPolicy, getQuote } from "@/lib/api/counterpart"
 import { useApiCallContext } from "@/context/ApiCallContext"
 import { useToast } from "@/components/ui/use-toast"
@@ -137,6 +137,16 @@ export function QuoteView({ application }: QuoteViewProps) {
   const [isSavingPayload, setIsSavingPayload] = useState(false)
   const [payloadError, setPayloadError] = useState<string | null>(null)
 
+  // Policy webhook state
+  const [policyData, setPolicyData] = useState<PolicyWebhookResponse | null>(null)
+  const [policyPasteOpen, setPolicyPasteOpen] = useState(false)
+  const [policyPasteValue, setPolicyPasteValue] = useState("")
+  const [isPolicyPasting, setIsPolicyPasting] = useState(false)
+  const [editPolicyOpen, setEditPolicyOpen] = useState(false)
+  const [editPolicyValue, setEditPolicyValue] = useState("")
+  const [isSavingPolicy, setIsSavingPolicy] = useState(false)
+  const [policyPayloadError, setPolicyPayloadError] = useState<string | null>(null)
+
   const fetchQuote = async () => {
     setIsLoading(true)
     setError(null)
@@ -152,9 +162,23 @@ export function QuoteView({ application }: QuoteViewProps) {
     }
   }
 
+  const fetchPolicy = async () => {
+    try {
+      const response = await getLocalPolicy(application.account_id)
+      if (response) {
+        setPolicyData(response)
+      }
+    } catch {
+      // Policy data is optional, don't surface errors
+    }
+  }
+
   useEffect(() => {
     fetchQuote()
-  }, [application.account_id])
+    if (application.status === "bound") {
+      fetchPolicy()
+    }
+  }, [application.account_id, application.status])
 
   const handleRefresh = async () => {
     await fetchQuote()
@@ -247,6 +271,84 @@ export function QuoteView({ application }: QuoteViewProps) {
     }
   }
 
+  const handlePolicyPasteSubmit = async () => {
+    const trimmed = policyPasteValue.trim()
+    if (!trimmed) return
+
+    let parsed: any
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      toast({ title: "Invalid JSON", description: "The pasted text is not valid JSON.", variant: "destructive" })
+      return
+    }
+
+    if (!parsed.status && !parsed.policy) {
+      toast({ title: "Invalid Payload", description: "Missing 'status' or 'policy' field in the webhook response.", variant: "destructive" })
+      return
+    }
+
+    setIsPolicyPasting(true)
+    try {
+      await savePolicyWebhookResponse(application.account_id, parsed)
+      setPolicyData(parsed as PolicyWebhookResponse)
+      setPolicyPasteValue("")
+      setPolicyPasteOpen(false)
+      toast({ title: "Policy Applied", description: `Policy webhook response saved successfully.` })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to save policy webhook response",
+        variant: "destructive",
+      })
+    } finally {
+      setIsPolicyPasting(false)
+    }
+  }
+
+  const handleOpenEditPolicy = () => {
+    if (!editPolicyOpen && policyData) {
+      setEditPolicyValue(JSON.stringify(policyData, null, 2))
+      setPolicyPayloadError(null)
+    }
+    setEditPolicyOpen(!editPolicyOpen)
+  }
+
+  const handleSavePolicyPayload = async () => {
+    const trimmed = editPolicyValue.trim()
+    if (!trimmed) return
+
+    let parsed: any
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      setPolicyPayloadError("Invalid JSON. Please fix syntax errors and try again.")
+      return
+    }
+
+    if (!parsed.status && !parsed.policy) {
+      setPolicyPayloadError("Missing 'status' or 'policy' field in the payload.")
+      return
+    }
+
+    setPolicyPayloadError(null)
+    setIsSavingPolicy(true)
+    try {
+      await savePolicyWebhookResponse(application.account_id, parsed)
+      setPolicyData(parsed as PolicyWebhookResponse)
+      setEditPolicyOpen(false)
+      toast({ title: "Policy Payload Updated", description: "The stored policy data has been saved." })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to save policy payload",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingPolicy(false)
+    }
+  }
+
   const handleBindPolicy = async () => {
     if (!effectiveDate) {
       toast({ title: "Missing Date", description: "Please select an effective date for the policy.", variant: "destructive" })
@@ -300,7 +402,8 @@ export function QuoteView({ application }: QuoteViewProps) {
     )
   }
 
-  const result = quoteData?.result ?? "PENDING"
+  const rawResult = quoteData?.result ?? "PENDING"
+  const result = rawResult === "SUCCESS" ? "QUOTED" : rawResult
   const quote = quoteData?.quote
   const message = quoteData?.message ?? "Your quote is still being processed."
   const isPending = result === "PENDING" || result === "PROCESSING"
@@ -769,16 +872,176 @@ export function QuoteView({ application }: QuoteViewProps) {
         )}
 
         {isBound && (
-          <div className="px-7 py-5 border-b border-qc-border bg-emerald-50/60">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-emerald-100">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="font-semibold text-sm text-emerald-700">Policy Bound</p>
-                <p className="text-xs text-emerald-600/70 mt-0.5">Policy documents will be delivered via webhook to your policy-results endpoint.</p>
+          <div className="border-b border-qc-border">
+            {/* Bound status banner */}
+            <div className="px-7 py-5 bg-emerald-50/60">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-emerald-100">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm text-emerald-700">Policy Bound</p>
+                  <p className="text-xs text-emerald-600/70 mt-0.5">
+                    {policyData
+                      ? `Policy ${policyData.policy?.policy_number || ""} is active.`
+                      : "Policy documents will be delivered via webhook to your policy-results endpoint."}
+                  </p>
+                </div>
               </div>
             </div>
+
+            {/* Policy details (when data is available) */}
+            {policyData?.policy && (
+              <div className="px-7 py-5 border-t border-qc-border bg-emerald-50/30">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-qc-muted mb-3.5">Policy Details</p>
+                <div className="space-y-2.5">
+                  {policyData.policy.policy_number && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-qc-muted">Policy Number</span>
+                      <span className="font-mono text-sm font-medium text-qc-text">{policyData.policy.policy_number}</span>
+                    </div>
+                  )}
+                  {policyData.policy.effective_date && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-qc-muted">Effective Date</span>
+                      <span className="text-sm text-qc-text">{formatDate(policyData.policy.effective_date)}</span>
+                    </div>
+                  )}
+                  {policyData.policy.expiration_date && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-qc-muted">Expiration Date</span>
+                      <span className="text-sm text-qc-text">{formatDate(policyData.policy.expiration_date)}</span>
+                    </div>
+                  )}
+                  {policyData.policy.coverages && policyData.policy.coverages.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-qc-border">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-qc-muted mb-2">Coverages</p>
+                      {policyData.policy.coverages.map((cov, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-1.5 border-b border-qc-border last:border-b-0">
+                          <span className="text-xs font-medium text-qc-text">
+                            {COVERAGE_LABELS[cov.coverage_line] || cov.coverage_line.toUpperCase()}
+                          </span>
+                          <div className="flex gap-3">
+                            {cov.limit && <span className="font-mono text-xs text-qc-teal">{formatCurrency(cov.limit)}</span>}
+                            {cov.retention && <span className="font-mono text-xs text-qc-muted">{formatCurrency(cov.retention)} ret.</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {policyData.policy.documents && Object.entries(policyData.policy.documents).some(([, v]) => v) && (
+                    <div className="mt-3 pt-3 border-t border-qc-border">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-qc-muted mb-2">Documents</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(policyData.policy.documents)
+                          .filter(([, v]) => v)
+                          .map(([key]) => (
+                            <span key={key} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-700">
+                              <FileText className="h-3 w-3" />
+                              {key.replace(/_/g, " ")}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Paste policy webhook (when no policy data yet) */}
+            {!policyData && (
+              <div className="px-7 py-4 border-t border-qc-border">
+                <button
+                  onClick={() => setPolicyPasteOpen(!policyPasteOpen)}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <ClipboardPaste className="h-4 w-4 text-qc-muted" />
+                    <span className="text-sm font-medium text-qc-text">Paste Policy Webhook Response</span>
+                  </div>
+                  {policyPasteOpen ? <ChevronUp className="h-4 w-4 text-qc-muted" /> : <ChevronDown className="h-4 w-4 text-qc-muted" />}
+                </button>
+                {policyPasteOpen && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-[11px] text-qc-muted">
+                      Paste the JSON payload received at your <span className="font-mono">policy-results</span> webhook endpoint.
+                    </p>
+                    <Textarea
+                      placeholder='{"account_id": "...", "status": "BOUND", "policy": { "policy_number": "...", ... }}'
+                      className="font-mono text-xs min-h-[140px] border-qc-border"
+                      value={policyPasteValue}
+                      onChange={(e) => setPolicyPasteValue(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button onClick={handlePolicyPasteSubmit} disabled={!policyPasteValue.trim() || isPolicyPasting} className="flex-1 bg-qc-teal hover:bg-qc-teal-mid text-white">
+                        {isPolicyPasting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Apply Policy Response
+                      </Button>
+                      <Button variant="outline" onClick={() => { setPolicyPasteValue(""); setPolicyPasteOpen(false) }} className="border-qc-border text-qc-muted">
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Edit policy payload (when policy data exists) */}
+            {policyData && (
+              <div className="px-7 py-4 border-t border-qc-border">
+                <button
+                  onClick={handleOpenEditPolicy}
+                  className="flex items-center justify-between w-full text-left group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Pencil className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+                    <span className="text-sm font-medium text-qc-text group-hover:text-qc-teal transition-colors">Edit Policy Payload</span>
+                  </div>
+                  {editPolicyOpen
+                    ? <ChevronUp className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+                    : <ChevronDown className="h-4 w-4 text-qc-muted group-hover:text-qc-teal transition-colors" />
+                  }
+                </button>
+                {editPolicyOpen && (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-[11px] text-qc-muted">
+                      Edit the raw policy JSON stored locally. Changes are saved to the database and reflected immediately.
+                    </p>
+                    <Textarea
+                      className="font-mono text-xs min-h-[300px] border-qc-border bg-qc-teal-pale/30"
+                      value={editPolicyValue}
+                      onChange={(e) => {
+                        setEditPolicyValue(e.target.value)
+                        setPolicyPayloadError(null)
+                      }}
+                    />
+                    {policyPayloadError && (
+                      <p className="text-xs text-red-500 flex items-center gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        {policyPayloadError}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSavePolicyPayload}
+                        disabled={!editPolicyValue.trim() || isSavingPolicy}
+                        className="flex-1 bg-qc-teal hover:bg-qc-teal-mid text-white"
+                      >
+                        {isSavingPolicy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Save Policy Payload
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => { setEditPolicyOpen(false); setPolicyPayloadError(null) }}
+                        className="border-qc-border text-qc-muted"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

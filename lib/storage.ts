@@ -59,6 +59,12 @@ async function getDatabase(): Promise<Database> {
     // Column already exists
   }
 
+  try {
+    db.run("ALTER TABLE applications ADD COLUMN policy_data TEXT");
+  } catch {
+    // Column already exists
+  }
+
   persistDatabase(db);
   return db;
 }
@@ -87,8 +93,8 @@ export async function saveApplication(
   database.run(
     `INSERT OR REPLACE INTO applications (
       account_id, status, company_name, coverages, answers, questions,
-      start_application_data, created_at, updated_at, submitted_at, quote_data
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      start_application_data, created_at, updated_at, submitted_at, quote_data, policy_data
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       application.account_id,
       application.status,
@@ -103,6 +109,7 @@ export async function saveApplication(
       now,
       application.submitted_at || null,
       application.quote_data || null,
+      application.policy_data || null,
     ]
   );
 
@@ -136,6 +143,7 @@ export async function getApplication(
       updated_at: row.updated_at,
       submitted_at: row.submitted_at || undefined,
       quote_data: row.quote_data || undefined,
+      policy_data: row.policy_data || undefined,
     });
   }
 
@@ -168,6 +176,7 @@ export async function getAllApplications(): Promise<StoredApplication[]> {
       updated_at: row[8] as string,
       submitted_at: (row[9] as string) || undefined,
       quote_data: (row[10] as string) || undefined,
+      policy_data: (row[11] as string) || undefined,
     };
     return normalizeApplication(app);
   });
@@ -235,6 +244,45 @@ export async function getQuoteData(
     stmt.free();
     if (row.quote_data) {
       return JSON.parse(row.quote_data);
+    }
+    return null;
+  }
+
+  stmt.free();
+  return null;
+}
+
+export async function savePolicyData(
+  accountId: string,
+  policyData: object
+): Promise<boolean> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+  const json = JSON.stringify(policyData);
+
+  database.run(
+    "UPDATE applications SET policy_data = ?, updated_at = ? WHERE account_id = ?",
+    [json, now, accountId]
+  );
+
+  persistDatabase(database);
+  return true;
+}
+
+export async function getPolicyData(
+  accountId: string
+): Promise<object | null> {
+  const database = await getDatabase();
+  const stmt = database.prepare(
+    "SELECT policy_data FROM applications WHERE account_id = ?"
+  );
+  stmt.bind([accountId]);
+
+  if (stmt.step()) {
+    const row = stmt.getAsObject() as any;
+    stmt.free();
+    if (row.policy_data) {
+      return JSON.parse(row.policy_data);
     }
     return null;
   }

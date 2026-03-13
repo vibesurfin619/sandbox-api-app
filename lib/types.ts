@@ -101,7 +101,7 @@ export interface SubmitApplicationResponse {
   account_id: string;
 }
 
-export type QuoteResult = "QUOTED" | "REVIEW" | "DECLINED" | "PENDING" | "PROCESSING";
+export type QuoteResult = "QUOTED" | "REVIEW" | "DECLINED" | "PENDING" | "PROCESSING" | "SUCCESS";
 
 export interface QuoteCoverage {
   coverage_line: string;
@@ -220,6 +220,28 @@ export interface BindPolicyResponse {
   status: "BOUND";
 }
 
+export interface PolicyWebhookResponse {
+  account_id?: string;
+  status?: string;
+  policy?: {
+    policy_number?: string;
+    effective_date?: string;
+    expiration_date?: string;
+    coverages?: Array<{
+      coverage_line: string;
+      limit?: string;
+      retention?: string;
+    }>;
+    documents?: {
+      declaration_page?: string | null;
+      policy_form?: string | null;
+      [key: string]: string | null | undefined;
+    };
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export interface ApiError {
   error: string | string[];
   code?: string;
@@ -238,4 +260,5 @@ export interface StoredApplication {
   updated_at: string;
   submitted_at?: string;
   quote_data?: string;
+  policy_data?: string;
 }
